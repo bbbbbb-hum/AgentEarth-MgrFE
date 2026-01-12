@@ -1,17 +1,26 @@
-ARG DOCKER_REP_PATH=
-# 降级到 node:18-alpine，这也是一个极大概率被缓存的稳定版
-FROM ${DOCKER_REP_PATH}node:18-alpine AS build
-WORKDIR /app
+ARG DOCKER_REP_PATH=""
+FROM ${DOCKER_REP_PATH}ubuntu:22.04
 
-COPY package.json package-lock.json ./
-RUN npm ci
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ca-certificates nginx \
+  && update-ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
 
-COPY . .
-RUN npm run build
+RUN rm -f /etc/nginx/sites-enabled/default
 
-ARG DOCKER_REP_PATH=
-FROM ${DOCKER_REP_PATH}nginx:latest
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=build /app/dist /usr/share/nginx/html
+RUN printf '%s\n' \
+  'server {' \
+  '  listen 80;' \
+  '  server_name _;' \
+  '  root /var/www/html;' \
+  '  index index.html;' \
+  '  location / {' \
+  '    try_files $uri $uri/ /index.html;' \
+  '  }' \
+  '}' \
+  > /etc/nginx/conf.d/default.conf
+
+COPY . /var/www/html
+
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
