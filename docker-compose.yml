@@ -14,7 +14,7 @@ services:
     build: .
     container_name: ae-mgr-fe
     ports:
-      - "9013:80"
+      - "9014:80"
     restart: always
     depends_on:
       - api
