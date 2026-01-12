@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: ../AgentEarth-Mgr
+      dockerfile: Dockerfile
+    container_name: ae-mgr-api
+    ports:
+      - "9005:9005"
+    restart: always
+
+  web:
+    build: .
+    container_name: ae-mgr-fe
+    ports:
+      - "9013:80"
+    restart: always
+    depends_on:
+      - api
+    
