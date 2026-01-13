@@ -37,6 +37,7 @@ const currentPage = ref(1);
 const pageSize = ref(10);
 const selectedIds = ref<number[]>([]);
 const isSelectingAll = ref(false);
+const apiBaseUrl = import.meta.env.BASE_URL;
 
 const showAddModal = ref(false);
 const newAccountName = ref('');
@@ -94,7 +95,7 @@ const selectAllAccounts = async () => {
         config_id: props.configId.toString()
       });
       
-      const response = await fetch(`/api/admin/mcp/service/config/account/list?${params.toString()}`);
+      const response = await fetch(`${apiBaseUrl}api/admin/mcp/service/config/account/list?${params.toString()}`);
       
       if (!response.ok) {
         throw new Error('Network response was not ok');
@@ -140,7 +141,7 @@ const fetchAccounts = async () => {
     
     console.log('Fetching accounts with params:', params.toString());
     
-    const response = await fetch(`/api/admin/mcp/service/config/account/list?${params.toString()}`);
+    const response = await fetch(`${apiBaseUrl}api/admin/mcp/service/config/account/list?${params.toString()}`);
     
     console.log('Response status:', response.status, 'ok:', response.ok);
     
@@ -237,7 +238,7 @@ const handleCreateAccount = async () => {
     const account = accounts.value.find(acc => acc.ConfigId === configId);
     const serviceName = account?.Name || '';
     
-    const response = await fetch('/api/admin/mcp/service/config/account/create', {
+    const response = await fetch(`${apiBaseUrl}api/admin/mcp/service/config/account/create`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -283,7 +284,7 @@ const handleDelete = async () => {
   error.value = '';
   
   try {
-    const response = await fetch('/api/admin/mcp/service/config/account/delete', {
+    const response = await fetch(`${apiBaseUrl}api/admin/mcp/service/config/account/delete`, {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json'
@@ -360,7 +361,7 @@ const saveEdit = async (id: number, isAutoSave: boolean = false) => {
     console.log('Original AuthInfo:', account?.AuthInfo);
     console.log('Editing AuthInfo:', editingData.value.AuthInfo);
     
-    const response = await fetch('/api/admin/mcp/service/config/account/update', {
+    const response = await fetch(`${apiBaseUrl}api/admin/mcp/service/config/account/update`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -421,7 +422,7 @@ const disableOtherAccounts = async (currentAccountId: number) => {
   
   for (const account of otherActiveAccounts) {
     try {
-      await fetch('/api/admin/mcp/service/config/account/update', {
+      await fetch(`${apiBaseUrl}api/admin/mcp/service/config/account/update`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

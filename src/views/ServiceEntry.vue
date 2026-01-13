@@ -60,6 +60,7 @@ const showFilterInput = reactive<Record<string, boolean>>({});
 const sortField = ref<string>('');
 const sortOrder = ref<'asc' | 'desc'>('asc');
 const activeFilterField = ref<string | null>(null);
+const apiBaseUrl = import.meta.env.BASE_URL;
 
 const allSelected = computed({
   get() {
@@ -122,7 +123,7 @@ const selectAllServices = async () => {
         }
       });
       
-      const response = await fetch(`/api/admin/data/service-config/list?${params.toString()}`);
+      const response = await fetch(`${apiBaseUrl}api/admin/data/service-config/list?${params.toString()}`);
       
       if (!response.ok) {
         throw new Error('Network response was not ok');
@@ -190,7 +191,7 @@ const fetchServiceList = async () => {
       }
     });
     
-    const response = await fetch(`/api/admin/data/service-config/list?${params.toString()}`);
+    const response = await fetch(`${apiBaseUrl}api/admin/data/service-config/list?${params.toString()}`);
     
     if (!response.ok) {
       throw new Error('Network response was not ok');
@@ -416,7 +417,7 @@ const saveEdit = async (id: number, isAutoSave: boolean = false) => {
 
     console.log('Sending request:', requestData);
     
-    const response = await fetch('/api/admin/data/update/service-config', {
+    const response = await fetch(`${apiBaseUrl}api/admin/data/update/service-config`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -484,7 +485,7 @@ const handleDelete = async () => {
   console.log('[Delete] 发送删除请求:', JSON.stringify(deleteBody, null, 2));
   
   try {
-    const response = await fetch('/api/admin/mcp/service/config/delete', {
+    const response = await fetch(`${apiBaseUrl}api/admin/mcp/service/config/delete`, {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json'
@@ -523,7 +524,7 @@ const handleSave = async (formData: any) => {
   error.value = '';
   
   try {
-    const response = await fetch('/api/admin/data/create/service-config-manual', {
+    const response = await fetch(`${apiBaseUrl}api/admin/data/create/service-config-manual`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'

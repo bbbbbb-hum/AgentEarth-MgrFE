@@ -117,6 +117,7 @@ const loading = ref(false);
 const testedServices = ref<Set<number>>(new Set());
 const accounts = ref<Record<number, Account[]>>({});
 const accountUpdateTime = ref<Record<number, string>>({});
+const apiBaseUrl = import.meta.env.BASE_URL;
 
 const filteredServices = computed(() => {
   if (!searchKeyword.value.trim()) {
@@ -150,7 +151,7 @@ const fetchAccounts = async (configId: number) => {
       config_id: configId.toString()
     });
     
-    const response = await fetch(`/api/admin/mcp/service/config/account/list?${params.toString()}`);
+    const response = await fetch(`${apiBaseUrl}api/admin/mcp/service/config/account/list?${params.toString()}`);
     if (!response.ok) throw new Error('Network response was not ok');
     
     const data = await response.json();
@@ -194,7 +195,7 @@ const fetchServices = async () => {
       size: pageSize.value.toString()
     });
     
-    const response = await fetch(`/api/admin/data/service-config/list?${params.toString()}`);
+    const response = await fetch(`${apiBaseUrl}api/admin/data/service-config/list?${params.toString()}`);
     if (!response.ok) throw new Error('Network response was not ok');
     
     const data: ApiResponse = await response.json();
@@ -264,7 +265,7 @@ const testService = async (service: ServiceConfig) => {
   try {
     const newStatus = service.TestStatus === 1 ? 0 : 1;
     
-    const response = await fetch('/api/admin/data/update/service-config', {
+    const response = await fetch(`${apiBaseUrl}api/admin/data/update/service-config`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'

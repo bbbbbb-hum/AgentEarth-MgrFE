@@ -60,6 +60,7 @@ const password = ref('');
 const loading = ref(false);
 const error = ref('');
 const success = ref('');
+const apiBaseUrl = import.meta.env.BASE_URL;
 
 const handleLogin = async () => {
   if (!username.value || !password.value) {
@@ -73,7 +74,7 @@ const handleLogin = async () => {
   success.value = '';
 
   try {
-    const response = await fetch('/api/admin/auth/login', {
+    const response = await fetch(`${apiBaseUrl}api/admin/auth/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

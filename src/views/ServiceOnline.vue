@@ -117,6 +117,7 @@ const loading = ref(false);
 const error = ref('');
 const processingId = ref<number | null>(null);
 const success = ref('');
+const apiBaseUrl = import.meta.env.BASE_URL;
 
 const getTypeLabel = (type: string) => {
   const typeMap: Record<string, string> = {
@@ -138,7 +139,7 @@ const fetchServices = async () => {
       filter_test_status: '1'
     });
     
-    const response = await fetch(`/api/admin/data/service-config/list?${params.toString()}`);
+    const response = await fetch(`${apiBaseUrl}api/admin/data/service-config/list?${params.toString()}`);
     
     if (!response.ok) {
       throw new Error('Network response was not ok');
@@ -187,7 +188,7 @@ const toggleOnline = async (service: ServiceConfig) => {
   const actionText = newStatus === 1 ? '上线' : '下线';
   
   try {
-    const response = await fetch('/api/admin/data/update-service-online', {
+    const response = await fetch(`${apiBaseUrl}api/admin/data/update-service-online`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'

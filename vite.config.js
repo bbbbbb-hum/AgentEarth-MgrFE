@@ -10,6 +10,7 @@ export default defineConfig(({ mode }) => {
   const apiPort = mode === 'api19005' ? '19005' : '9005'
   
   return {
+    base: '/manager/',
     plugins: [
       vue(),
       vueDevTools(),
@@ -22,7 +23,7 @@ export default defineConfig(({ mode }) => {
     server: {
       host: '0.0.0.0',
       proxy: {
-        '/api': {
+        '/manager/api': {
           target: `http://localhost:${apiPort}`,
           changeOrigin: true
         }
