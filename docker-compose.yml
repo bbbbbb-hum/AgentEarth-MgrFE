@@ -3,8 +3,8 @@ version: '3.8'
 services:
   web:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ./dist
+      dockerfile: ../Dockerfile
     container_name: ae-mgr-fe
     ports:
       - "9014:80"
