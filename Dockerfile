@@ -7,18 +7,7 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 RUN rm -f /etc/nginx/sites-enabled/default
-
-RUN printf '%s\n' \
-  'server {' \
-  '  listen 80;' \
-  '  server_name _;' \
-  '  root /opt/xlapps/AEMgrFE/html;' \
-  '  index index.html;' \
-  '  location / {' \
-  '    try_files $uri $uri/ /index.html;' \
-  '  }' \
-  '}' \
-  > /etc/nginx/conf.d/default.conf
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 RUN mkdir -p /opt/xlapps/AEMgrFE/html
 
