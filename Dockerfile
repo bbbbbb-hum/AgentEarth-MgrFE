@@ -6,12 +6,13 @@ RUN apt-get update \
   && update-ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 
-RUN rm -f /etc/nginx/sites-enabled/default
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+RUN mkdir -p /opt/xlapps/AEMGRFE/html \
+  && mkdir -p /opt/xlconfigs/AEMGRFE
 
-RUN mkdir -p /opt/xlapps/AEMgrFE/html
+WORKDIR /opt/xlapps/AEMGRFE/html
 
-COPY . /opt/xlapps/AEMgrFE/html
+COPY . /opt/xlapps/AEMGRFE/html
+COPY nginx.conf /opt/xlconfigs/AEMGRFE/nginx.conf
 
 EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
+CMD ["nginx", "-c", "/opt/xlconfigs/AEMGRFE/nginx.conf", "-g", "daemon off;"]
