@@ -1,10 +1,5 @@
 ARG DOCKER_REP_PATH=""
-FROM ${DOCKER_REP_PATH}ubuntu:22.04
-
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends ca-certificates nginx \
-  && update-ca-certificates \
-  && rm -rf /var/lib/apt/lists/*
+FROM ${DOCKER_REP_PATH}nginx:alpine
 
 RUN mkdir -p /opt/xlapps/AEMGRFE/html \
   && mkdir -p /opt/xlconfigs/AEMGRFE
