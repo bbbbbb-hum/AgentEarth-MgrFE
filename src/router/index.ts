@@ -2,6 +2,7 @@ import { createRouter, createWebHistory, type RouteLocationNormalized, type Navi
 import ServiceEntry from '../views/ServiceEntry.vue';
 import ServiceTest from '../views/ServiceTest.vue';
 import ServiceOnline from '../views/ServiceOnline.vue';
+import ServicePrice from '../views/ServicePrice.vue';
 import Login from '../views/Login.vue';
 
 const routes = [
@@ -30,6 +31,12 @@ const routes = [
     path: '/service-online',
     name: 'ServiceOnline',
     component: ServiceOnline,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/service-price',
+    name: 'ServicePrice',
+    component: ServicePrice,
     meta: { requiresAuth: true }
   }
 ];

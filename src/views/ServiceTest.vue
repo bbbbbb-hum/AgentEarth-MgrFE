@@ -1,7 +1,7 @@
 <template>
   <div class="service-list-container">
     <div class="page-header">
-      <h1>MCP服务测试列表</h1>
+      <h1>外部MCP服务测试列表</h1>
     </div>
     
     <div class="service-test">

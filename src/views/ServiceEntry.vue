@@ -653,7 +653,7 @@ const handlePageChange = (newPage: number) => {
 
     <div class="content-wrapper">
       <div class="section-header">
-        <h2 class="section-title">MCP服务录入列表</h2>
+        <h2 class="section-title">外部MCP服务录入列表</h2>
       </div>
       <div class="service-actions">
         <div class="selection-info">

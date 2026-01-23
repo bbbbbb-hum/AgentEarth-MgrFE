@@ -1,7 +1,7 @@
 <template>
   <div class="service-online-container">
     <div class="page-header">
-      <h1>MCP服务上线状态管理列表</h1>
+      <h1>外部MCP服务上线状态管理列表</h1>
     </div>
     
     <div v-if="error" class="alert alert-error">

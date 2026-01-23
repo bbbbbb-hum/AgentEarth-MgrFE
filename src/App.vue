@@ -100,21 +100,27 @@ const sidebarMenu = ref<SidebarMenuItem[]>([
   // },
   {
     id: 2,
-    title: 'MCP服务录入',
+    title: '外部MCP服务录入',
     path: '/service-entry',
     icon: '🖥️'
   },
   {
     id: 3,
-    title: 'MCP服务测试',
+    title: '外部MCP服务测试',
     path: '/service-test',
     icon: '🔧'
   },
   {
     id: 4,
-    title: 'MCP服务上线状态管理',
+    title: '外部MCP服务上线状态管理',
     path: '/service-online',
     icon: '🔄'
+  },
+  {
+    id: 5,
+    title: '星量MCP服务价格管理',
+    path: '/service-price',
+    icon: '💰'
   }
   // {
   //   id: 3,
