@@ -355,8 +355,8 @@ const exportToExcel = async () => {
       '类型说明': record.type_description,
       '充值类型': record.charge_type_desc || '-',
       '变动金额': record.change_amount > 0 
-        ? `+¥${formatCurrency(Math.abs(record.change_amount))}` 
-        : `-¥${formatCurrency(Math.abs(record.change_amount))}`,
+        ? `+${formatCurrency(Math.abs(record.change_amount))}` 
+        : `-${formatCurrency(Math.abs(record.change_amount))}`,
       '操作人': record.operator || '-',
       '状态': record.status,
       '备注/原因': record.remarks || '-'
@@ -640,7 +640,7 @@ const updateCharts = () => {
       yAxis: {
         type: 'value',
         axisLine: { lineStyle: { color: '#e5e7eb' } },
-        axisLabel: { color: '#6b7280', formatter: '¥{value}' },
+        axisLabel: { color: '#6b7280', formatter: '{value}' },
         splitLine: { lineStyle: { color: '#f3f4f6' } }
       },
       series: [{
@@ -773,7 +773,7 @@ const updateCharts = () => {
       yAxis: {
         type: 'value',
         axisLine: { lineStyle: { color: '#e5e7eb' } },
-        axisLabel: { color: '#6b7280', formatter: '¥{value}' },
+        axisLabel: { color: '#6b7280', formatter: '{value}' },
         splitLine: { lineStyle: { color: '#f3f4f6' } }
       },
       series: [
@@ -1319,7 +1319,7 @@ onUnmounted(() => {
           <div class="balance-section">
             <div class="balance-label">当前可用余额</div>
             <div class="balance-amount tech-balance">
-              ¥ {{ formatCurrency(displayBalance) }}
+              {{ formatCurrency(displayBalance) }}
             </div>
           </div>
           <div class="runway-section">
@@ -1334,7 +1334,7 @@ onUnmounted(() => {
           </div>
           <div class="consumption-section">
             <div class="consumption-label">日均消费</div>
-            <div class="consumption-value">¥{{ formatCurrency(userDetail.daily_consumption) }}/天</div>
+            <div class="consumption-value">{{ formatCurrency(userDetail.daily_consumption) }}/天</div>
           </div>
         </div>
       </div>
@@ -1463,7 +1463,7 @@ onUnmounted(() => {
                   class="amount-pill"
                   :class="record.change_amount > 0 ? 'amount-positive' : 'amount-negative'"
                 >
-                  {{ record.change_amount > 0 ? '+' : '-' }}¥{{ formatCurrency(Math.abs(record.change_amount)) }}
+                  {{ record.change_amount > 0 ? '+' : '-' }}{{ formatCurrency(Math.abs(record.change_amount)) }}
                 </span>
               </td>
               <td>{{ record.operator || '-' }}</td>
@@ -1539,13 +1539,12 @@ onUnmounted(() => {
             </div>
             <div class="info-text">
               <div>正在为 <span class="username-truncate-inline" :title="userDetail?.user.username">{{ userDetail?.user.username }}</span> 充值</div>
-              <div>当前余额: ¥{{ formatCurrency(userDetail?.current_balance || 0) }}</div>
+              <div>当前余额: {{ formatCurrency(userDetail?.current_balance || 0) }}</div>
             </div>
           </div>
           <div class="input-group">
             <label>充值金额</label>
             <div class="amount-input-wrapper">
-              <span class="currency-symbol">¥</span>
               <input 
                 type="number" 
                 v-model.number="rechargeAmount" 
@@ -1614,7 +1613,7 @@ onUnmounted(() => {
             </div>
             <div class="summary-item">
               <span class="summary-label">充值后余额</span>
-              <span class="summary-value">¥{{ formatCurrency((userDetail?.current_balance || 0) + rechargeAmount) }}</span>
+              <span class="summary-value">{{ formatCurrency((userDetail?.current_balance || 0) + rechargeAmount) }}</span>
             </div>
           </div>
         </div>
@@ -1648,13 +1647,12 @@ onUnmounted(() => {
             </div>
             <div class="info-text">
               <div>正在为 <span class="username-truncate-inline" :title="userDetail?.user.username">{{ userDetail?.user.username }}</span> 扣减</div>
-              <div>当前余额: ¥{{ formatCurrency(userDetail?.current_balance || 0) }}</div>
+              <div>当前余额: {{ formatCurrency(userDetail?.current_balance || 0) }}</div>
             </div>
           </div>
           <div class="input-group">
             <label>扣减金额</label>
             <div class="amount-input-wrapper">
-              <span class="currency-symbol">¥</span>
               <input 
                 type="number" 
                 v-model.number="deductionAmount" 
@@ -1735,7 +1733,7 @@ onUnmounted(() => {
             </div>
             <div class="summary-item">
               <span class="summary-label">扣减后余额</span>
-              <span class="summary-value">¥{{ formatCurrency((userDetail?.current_balance || 0) - deductionAmount) }}</span>
+              <span class="summary-value">{{ formatCurrency((userDetail?.current_balance || 0) - deductionAmount) }}</span>
             </div>
           </div>
         </div>
@@ -2735,7 +2733,7 @@ onUnmounted(() => {
 
 .amount-input {
   width: 100%;
-  padding: 12px 12px 12px 32px;
+  padding: 12px;
   border: 2px solid #e5e7eb;
   border-radius: 8px;
   font-size: 18px;

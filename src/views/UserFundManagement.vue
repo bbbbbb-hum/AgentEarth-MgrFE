@@ -566,7 +566,7 @@ onUnmounted(() => {
         <div class="stats-icon">📅</div>
         <div class="stats-content">
           <div class="stats-label">24h 充值</div>
-          <div class="stats-value green-text">+¥{{ formatCurrency(stats.total_recharge_24h) }}</div>
+          <div class="stats-value green-text">+{{ formatCurrency(stats.total_recharge_24h) }}</div>
         </div>
       </div>
       <!-- Placeholder for future feature -->
@@ -729,12 +729,12 @@ onUnmounted(() => {
 
           <div class="card-body">
             <div class="balance-label">当前余额</div>
-            <div class="balance-amount">¥{{ formatCurrency(user.balance) }}</div>
+            <div class="balance-amount">{{ formatCurrency(user.balance) }}</div>
           </div>
 
           <div class="card-footer">
             <div class="footer-info">
-              <span class="label">日均消费: ¥{{ formatCurrency(user.daily_consumption || 0) }}</span> 
+              <span class="label">日均消费: {{ formatCurrency(user.daily_consumption || 0) }}</span>
             </div>
             <div class="footer-info">
               <span class="label">上次登录: {{ formatDate(user.last_login_at) }}</span>
