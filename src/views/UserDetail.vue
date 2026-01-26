@@ -547,6 +547,15 @@ const updateCharts = () => {
     const date = new Date(d);
     return `${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
   });
+  const selfConsumeSeriesData = selfConsume.map((value, idx) => {
+    const hasDeductOnTop = (systemDeduct[idx] || 0) > 0;
+    return {
+      value,
+      itemStyle: {
+        borderRadius: hasDeductOnTop ? [0, 0, 0, 0] : [4, 4, 0, 0]
+      }
+    };
+  });
 
   console.log('Balance values:', balanceValues);
   console.log('Balance dates:', balanceDates);
@@ -738,8 +747,9 @@ const updateCharts = () => {
         formatter: function (params: any) {
           if (!Array.isArray(params) || params.length === 0) return '无数据';
           const date = (params[0].axisValue != null) ? String(params[0].axisValue) : '';
-          const selfVal = (params[0].value != null) ? params[0].value : 0;
-          const deductVal = (params[1] && params[1].value != null) ? params[1].value : 0;
+          const getVal = (val: any) => (typeof val === 'number' ? val : (val?.value ?? 0));
+          const selfVal = getVal(params[0].value);
+          const deductVal = params[1] ? getVal(params[1].value) : 0;
           const totalVal = (selfVal || 0) + (deductVal || 0);
           return date + '<br/>' +
             '<span style="color:#10b981">自行消费 : ' + selfVal + '</span><br/>' +
@@ -769,15 +779,14 @@ const updateCharts = () => {
       series: [
         {
           name: '自行消费',
-          data: selfConsume,
+          data: selfConsumeSeriesData,
           type: 'bar',
           stack: 'total',
           itemStyle: {
             color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
               { offset: 0, color: '#10b981' },
               { offset: 1, color: '#059669' }
-            ]),
-            borderRadius: [4, 4, 0, 0]
+            ])
           },
           barWidth: '60%',
           // 优化时间切换动画：启用通用过渡，让柱状图之间平滑过渡
