@@ -74,6 +74,10 @@ const pageSizeOptions = [10, 20, 50, 100, 200];
 const loading = ref(false);
 const searchKeyword = ref('');
 const apiBaseUrl = import.meta.env.BASE_URL;
+const getAuthHeaders = (): Record<string, string> => {
+  const token = localStorage.getItem('token');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
 
 // 筛选和排序状态
 const filterStatus = ref('all'); // all, active, inactive
@@ -88,6 +92,7 @@ const fetchStats = async () => {
     const url = `${apiBaseUrl}api/userfund/stats`;
     console.log('Fetching stats from:', url);
     const response = await fetch(url, {
+      headers: getAuthHeaders(),
       credentials: 'include',
     });
     console.log('Stats response status:', response.status, response.statusText);
@@ -132,6 +137,7 @@ const fetchUserList = async () => {
     params.append('pageSize', pageSize.value.toString());
 
     const response = await fetch(`${apiBaseUrl}api/userfund/list?${params.toString()}`, {
+      headers: getAuthHeaders(),
       credentials: 'include',
     });
     if (!response.ok) throw new Error('Failed to fetch user list');
