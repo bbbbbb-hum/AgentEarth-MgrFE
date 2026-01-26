@@ -98,6 +98,14 @@ const fetchServiceList = async () => {
   loading.value = true;
 
   try {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      showToast('请先登录', 'error');
+      // 可以在这里跳转到登录页
+      // router.push('/login');
+      return;
+    }
+
     const params = new URLSearchParams({
       page: currentPage.value.toString(),
       size: pageSize.value.toString()
@@ -116,15 +124,23 @@ const fetchServiceList = async () => {
       params.append('order', sortOrder.value);
     }
 
-    const token = localStorage.getItem('token');
     const response = await fetch(`${apiBaseUrl}api/admin/mcp/service/list?${params.toString()}`, {
       headers: {
-        'Authorization': token ? `Bearer ${token}` : ''
-      }
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      credentials: 'include'
     });
 
     if (!response.ok) {
-      throw new Error('Network response was not ok');
+      if (response.status === 401) {
+        showToast('登录已过期，请重新登录', 'error');
+        localStorage.removeItem('token');
+        // 可以在这里跳转到登录页
+        // router.push('/login');
+        return;
+      }
+      throw new Error(`Network response was not ok: ${response.status}`);
     }
 
     const data: ApiResponse = await response.json();
@@ -198,6 +214,7 @@ const savePrice = async (item: ServiceItem) => {
         'Content-Type': 'application/json',
         'Authorization': token ? `Bearer ${token}` : ''
       },
+      credentials: 'include',
       body: JSON.stringify({
         server_id: item.ServerId,
         price: priceToSave
@@ -313,6 +330,7 @@ const handleBatchUpdatePrice = async () => {
         'Content-Type': 'application/json',
         'Authorization': token ? `Bearer ${token}` : ''
       },
+      credentials: 'include',
       body: JSON.stringify(payload)
     });
 

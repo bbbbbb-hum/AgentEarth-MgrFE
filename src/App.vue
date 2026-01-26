@@ -21,25 +21,80 @@ interface Tab {
 }
 
 const tabs = ref<Tab[]>([
-  { id: 1, title: 'MCP服务录入', path: '/service-entry', closable: false }
+  { id: 1, title: '外部MCP服务录入', path: '/service-entry', closable: true }
 ]);
 const activeTab = ref('/service-entry');
 
 // 当前页面标题
-const currentPageTitle = ref('MCP服务录入');
+const currentPageTitle = ref('外部MCP服务录入');
+
+// 检查是否是详情页路由（带参数的路由）
+const isDetailRoute = (path: string, basePath: string): boolean => {
+  // 如果路径以基础路径开头，且长度更长，说明是详情页
+  return path.startsWith(basePath + '/') && path !== basePath;
+};
+
+// 获取基础路径（不带参数）
+const getBasePath = (path: string): string => {
+  const parts = path.split('/');
+  // 如果路径有3个或更多部分（如 /user-fund/:id），则返回前两部分
+  if (parts.length >= 3) {
+    return `/${parts[1]}`;
+  }
+  return path;
+};
 
 // 添加标签页
 const addTab = (path: string, title: string) => {
-  // 检查标签页是否已存在
-  const existingTab = tabs.value.find(tab => tab.path === path);
-  if (!existingTab) {
-    tabs.value.push({
-      id: Date.now(),
-      title,
-      path,
-      closable: true
+  const basePath = getBasePath(path);
+  const isDetail = isDetailRoute(path, basePath);
+  
+  // 检查当前激活的标签页
+  const currentActiveTab = tabs.value.find(tab => tab.path === activeTab.value);
+  
+  if (isDetail) {
+    // 如果是详情页，查找对应的基础路径标签页并更新
+    const baseTab = tabs.value.find(tab => {
+      const tabBasePath = getBasePath(tab.path);
+      return tabBasePath === basePath && !isDetailRoute(tab.path, basePath);
     });
+    
+    if (baseTab) {
+      // 更新现有标签页的路径和标题，保持在同一个标签页内
+      baseTab.path = path;
+      baseTab.title = title;
+      activeTab.value = path;
+      return;
+    }
+  } else {
+    // 如果是从详情页返回到列表页，检查当前激活的标签页是否是详情页
+    if (currentActiveTab && isDetailRoute(currentActiveTab.path, getBasePath(currentActiveTab.path))) {
+      const currentBasePath = getBasePath(currentActiveTab.path);
+      // 如果当前标签页是详情页，且要跳转到对应的列表页，则更新当前标签页
+      if (currentBasePath === path) {
+        currentActiveTab.path = path;
+        currentActiveTab.title = title;
+        activeTab.value = path;
+        return;
+      }
+    }
   }
+  
+  // 检查标签页是否已存在（精确匹配）
+  const existingTab = tabs.value.find(tab => tab.path === path);
+  if (existingTab) {
+    // 如果标签页已存在，直接切换到该标签页，不创建新的
+    activeTab.value = path;
+    return;
+  }
+  
+  // 如果标签页不存在，创建新标签页
+  tabs.value.push({
+    id: Date.now(),
+    title,
+    path,
+    closable: true
+  });
   activeTab.value = path;
 };
 
@@ -50,14 +105,28 @@ const closeTab = (path: string) => {
   
   const index = tabs.value.findIndex(tab => tab.path === path);
   if (index > -1) {
+    const isClosingActiveTab = activeTab.value === path;
+    
+    // 删除标签页
     tabs.value.splice(index, 1);
     
-    // 如果关闭的是当前激活的标签页，切换到前一个标签页
-    if (activeTab.value === path) {
-      const prevIndex = Math.max(0, index - 1);
-      const prevTab = tabs.value[prevIndex];
-      if (prevTab) {
-        activeTab.value = prevTab.path;
+    // 如果关闭的是当前激活的标签页，切换到前一个标签页并跳转路由
+    if (isClosingActiveTab) {
+      // 优先选择前一个标签页，如果没有则选择后一个，都没有则选择第一个
+      let targetTab: Tab | null = null;
+      
+      if (index > 0) {
+        // 选择前一个标签页
+        targetTab = tabs.value[index - 1];
+      } else if (tabs.value.length > 0) {
+        // 选择第一个标签页（因为关闭的是第一个）
+        targetTab = tabs.value[0];
+      }
+      
+      if (targetTab) {
+        activeTab.value = targetTab.path;
+        // 实际跳转到目标标签页的路由
+        router.replace(targetTab.path);
       }
     }
   }
@@ -121,6 +190,12 @@ const sidebarMenu = ref<SidebarMenuItem[]>([
     title: '星量MCP服务价格管理',
     path: '/service-price',
     icon: '💰'
+  },
+  {
+    id: 6,
+    title: '星量用户资金管理',
+    path: '/user-fund',
+    icon: '💎'
   }
   // {
   //   id: 3,
@@ -188,18 +263,18 @@ watch(
       return;
     }
     
+    // 如果新路径和旧路径相同，不处理（避免重复创建标签页）
+    if (newPath === oldPath) {
+      // 即使路径相同，也要确保 activeTab 正确设置
+      const existingTab = tabs.value.find(tab => tab.path === newPath);
+      if (existingTab) {
+        activeTab.value = newPath;
+      }
+      return;
+    }
+    
     // 查找当前路由对应的菜单标题
     let currentTitle = '未知页面';
-    
-    // 提取基础路径（用于处理带参数的路由）
-    const getBasePath = (path: string) => {
-      const parts = path.split('/');
-      // 如果路径有3个或更多部分（如 /path/:id），则返回前两部分
-      if (parts.length >= 3) {
-        return `/${parts[1]}`;
-      }
-      return path;
-    };
     
     // 先搜索所有子菜单
     for (const menu of sidebarMenu.value) {
@@ -215,7 +290,8 @@ watch(
         const basePath = getBasePath(newPath);
         const baseSubMenu = menu.children.find(item => item.path === basePath);
         if (baseSubMenu) {
-          currentTitle = `${baseSubMenu.title} - 详情`;
+          // 详情页使用基础标题，不添加"- 详情"后缀
+          currentTitle = baseSubMenu.title;
           break;
         }
       }
@@ -232,7 +308,8 @@ watch(
         const basePath = getBasePath(newPath);
         const baseMainMenu = sidebarMenu.value.find(menu => menu.path === basePath);
         if (baseMainMenu) {
-          currentTitle = `${baseMainMenu.title} - 详情`;
+          // 详情页使用基础标题，不添加"- 详情"后缀
+          currentTitle = baseMainMenu.title;
         }
       }
     }
@@ -275,7 +352,7 @@ onMounted(() => {
         <!-- 侧边栏头部 -->
         <div class="sidebar-header">
           <div v-if="sidebarOpen" class="logo">
-            <h1>DataView</h1>
+            <h1>星量智网</h1>
           </div>
           <button class="sidebar-toggle" @click="sidebarOpen = !sidebarOpen">
             {{ sidebarOpen ? '◀️' : '▶️' }}
@@ -391,22 +468,38 @@ body {
 
 /* 侧边栏样式 */
 .sidebar {
-  width: 250px;
-  background-color: #2c3e50;
+  width: 260px;
+  background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
   color: #fff;
   display: flex;
   flex-direction: column;
-  transition: width 0.3s ease;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 100;
+  box-shadow: 4px 0 12px rgba(0, 0, 0, 0.15);
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .sidebar-collapsed {
-  width: 60px;
+  width: 70px;
+}
+
+.sidebar-collapsed .menu-link {
+  justify-content: center;
+  padding: 14px 0;
+  margin-right: 0;
+}
+
+.sidebar-collapsed .menu-icon {
+  margin-right: 0;
+}
+
+.sidebar-collapsed .submenu {
+  display: none;
 }
 
 /* 当侧边栏折叠时，调整主内容区域宽度 */
 .sidebar-collapsed + .main-content {
-  width: calc(100vw - 60px);
+  width: calc(100vw - 70px);
 }
 
 /* 侧边栏头部 */
@@ -414,54 +507,112 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20px;
-  border-bottom: 1px solid #34495e;
+  padding: 20px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
 }
 
 .sidebar-header .logo h1 {
-  font-size: 1.2rem;
+  font-size: 1.4rem;
   margin: 0;
+  font-weight: 700;
+  background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: 0.5px;
 }
 
 .sidebar-toggle {
-  background: none;
+  background: rgba(255, 255, 255, 0.1);
   border: none;
   color: #fff;
   font-size: 1rem;
   cursor: pointer;
-  padding: 5px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+}
+
+.sidebar-toggle:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: scale(1.1);
 }
 
 /* 侧边栏菜单 */
 .sidebar-menu {
   flex: 1;
-  padding: 20px 0;
+  padding: 12px 0;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .sidebar-menu ul {
   list-style: none;
+  padding: 0;
+  margin: 0;
 }
 
 .menu-item {
-  margin-bottom: 5px;
+  margin-bottom: 4px;
+  position: relative;
 }
 
 .menu-link {
   display: flex;
   align-items: center;
-  padding: 12px 20px;
-  color: #bdc3c7;
+  padding: 14px 20px;
+  color: rgba(255, 255, 255, 0.7);
   text-decoration: none;
-  transition: all 0.3s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 0 8px 8px 0;
+  margin-right: 12px;
+  position: relative;
+  font-weight: 500;
+  font-size: 0.95rem;
 }
 
-.menu-item:hover {
-  background-color: rgba(52, 152, 219, 0.1);
+.menu-link::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 0;
+  background: linear-gradient(180deg, #60a5fa 0%, #3b82f6 100%);
+  border-radius: 0 2px 2px 0;
+  transition: height 0.3s ease;
 }
 
-.menu-item-active, .menu-item.active {
-  background-color: rgba(52, 152, 219, 0.2);
-  border-right: 3px solid #3498db;
+.menu-item:hover .menu-link {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  transform: translateX(4px);
+}
+
+.menu-item:hover .menu-link::before {
+  height: 60%;
+}
+
+.menu-item-active .menu-link,
+.menu-item.active .menu-link {
+  background: linear-gradient(90deg, rgba(59, 130, 246, 0.2) 0%, rgba(59, 130, 246, 0.1) 100%);
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
+}
+
+.menu-item-active .menu-link::before,
+.menu-item.active .menu-link::before {
+  height: 70%;
+  box-shadow: 0 0 8px rgba(96, 165, 250, 0.6);
 }
 
 .submenu-item-active, .submenu-item.active {
@@ -470,46 +621,111 @@ body {
 }
 
 .menu-icon {
-  font-size: 1.2rem;
-  margin-right: 10px;
-  width: 20px;
+  font-size: 1.3rem;
+  margin-right: 12px;
+  width: 24px;
   text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.3s ease;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+}
+
+.menu-item:hover .menu-icon {
+  transform: scale(1.15);
+}
+
+.menu-item-active .menu-icon,
+.menu-item.active .menu-icon {
+  transform: scale(1.2);
+  filter: drop-shadow(0 0 8px rgba(96, 165, 250, 0.6));
 }
 
 .menu-title {
   font-size: 0.95rem;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* 子菜单 */
 .submenu {
-  background-color: #34495e;
-  padding-left: 20px;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 8px 0 8px 20px;
+  margin-top: 4px;
+  border-left: 2px solid rgba(255, 255, 255, 0.1);
+  margin-left: 20px;
+  border-radius: 0 0 0 8px;
 }
 
 .submenu-item {
-  margin: 0;
+  margin: 2px 0;
 }
 
 .submenu-link {
   display: flex;
   align-items: center;
-  padding: 8px 20px;
-  color: #bdc3c7;
+  padding: 10px 16px;
+  color: rgba(255, 255, 255, 0.6);
   text-decoration: none;
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   transition: all 0.3s ease;
+  border-radius: 6px;
+  margin-right: 12px;
+  position: relative;
+}
+
+.submenu-link::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 2px;
+  height: 0;
+  background: linear-gradient(180deg, #60a5fa 0%, #3b82f6 100%);
+  border-radius: 0 2px 2px 0;
+  transition: height 0.3s ease;
 }
 
 .submenu-link:hover {
-  background-color: #4a6278;
+  background: rgba(255, 255, 255, 0.1);
   color: #fff;
+  transform: translateX(4px);
+}
+
+.submenu-link:hover::before {
+  height: 50%;
+}
+
+.submenu-item-active .submenu-link,
+.submenu-item.active .submenu-link {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+  font-weight: 600;
+}
+
+.submenu-item-active .submenu-link::before,
+.submenu-item.active .submenu-link::before {
+  height: 60%;
+  box-shadow: 0 0 6px rgba(96, 165, 250, 0.5);
 }
 
 .submenu-icon {
-  font-size: 0.9rem;
-  margin-right: 8px;
-  width: 16px;
+  font-size: 1rem;
+  margin-right: 10px;
+  width: 18px;
   text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.3s ease;
+}
+
+.submenu-link:hover .submenu-icon {
+  transform: scale(1.1);
 }
 
 /* 主内容区域 */

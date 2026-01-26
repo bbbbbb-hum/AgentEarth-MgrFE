@@ -145,14 +145,33 @@ const getTypeLabel = (type: string) => {
 
 const fetchAccounts = async (configId: number) => {
   try {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      console.error('No token found, cannot fetch accounts');
+      return;
+    }
+
     const params = new URLSearchParams({
       page: '1',
       size: '100',
       config_id: configId.toString()
     });
     
-    const response = await fetch(`${apiBaseUrl}api/admin/mcp/service/config/account/list?${params.toString()}`);
-    if (!response.ok) throw new Error('Network response was not ok');
+    const response = await fetch(`${apiBaseUrl}api/admin/mcp/service/config/account/list?${params.toString()}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      credentials: 'include'
+    });
+    
+    if (!response.ok) {
+      if (response.status === 401) {
+        console.error('Unauthorized: Token may be expired');
+        return;
+      }
+      throw new Error(`Network response was not ok: ${response.status}`);
+    }
     
     const data = await response.json();
     

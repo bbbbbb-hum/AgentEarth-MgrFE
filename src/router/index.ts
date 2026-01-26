@@ -3,6 +3,8 @@ import ServiceEntry from '../views/ServiceEntry.vue';
 import ServiceTest from '../views/ServiceTest.vue';
 import ServiceOnline from '../views/ServiceOnline.vue';
 import ServicePrice from '../views/ServicePrice.vue';
+import UserFundManagement from '../views/UserFundManagement.vue';
+import UserDetail from '../views/UserDetail.vue';
 import Login from '../views/Login.vue';
 
 const routes = [
@@ -37,6 +39,18 @@ const routes = [
     path: '/service-price',
     name: 'ServicePrice',
     component: ServicePrice,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/user-fund',
+    name: 'UserFundManagement',
+    component: UserFundManagement,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/user-fund/:user_str_id',
+    name: 'UserDetail',
+    component: UserDetail,
     meta: { requiresAuth: true }
   }
 ];
