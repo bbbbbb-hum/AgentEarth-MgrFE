@@ -99,6 +99,9 @@ interface FundChangeRecord {
   change_amount: number;
   status: string;
   remarks: string;
+  charge_type: number;
+  charge_type_desc: string;
+  operator: string;
 }
 
 // 状态
@@ -109,6 +112,7 @@ const balanceHistory = ref<BalanceHistory[]>([]);
 const fundChangeRecords = ref<FundChangeRecord[]>([]);
 const selectedDays = ref(7); // 7 或 30
 const recordFilter = ref('all'); // all, recharge, deduction
+const chargeTypeFilter = ref(0); // 0=全部, 1=常规, 2=补偿, 3=赠送
 const lineChart = shallowRef<echarts.ECharts | null>(null);
 const barChart = shallowRef<echarts.ECharts | null>(null);
 const isChartInitialized = ref(false); // 标记图表是否已初始化
@@ -116,10 +120,12 @@ const showRechargeModal = ref(false);
 const showConfirmModal = ref(false);
 const rechargeAmount = ref(0);
 const rechargeRemarks = ref('');
+const rechargeChargeType = ref(1);
 const showDeductionModal = ref(false);
 const showDeductionConfirmModal = ref(false);
 const deductionAmount = ref(0);
 const deductionRemarks = ref('');
+const deductionChargeType = ref(1);
 const showSuccessToast = ref(false);
 const successMessage = ref('');
 const showCopyToast = ref(false);
@@ -242,7 +248,12 @@ const fetchBalanceHistory = async () => {
 // 获取资金变动明细
 const fetchFundChangeRecords = async () => {
   try {
-    const response = await fetch(`${apiBaseUrl}api/userfund/user/${userStrId.value}/fund-changes?filter=${recordFilter.value}`, {
+    const params = new URLSearchParams();
+    params.append('filter', recordFilter.value);
+    if (chargeTypeFilter.value > 0) {
+      params.append('charge_type', chargeTypeFilter.value.toString());
+    }
+    const response = await fetch(`${apiBaseUrl}api/userfund/user/${userStrId.value}/fund-changes?${params.toString()}`, {
       credentials: 'include',
     });
     if (!response.ok) throw new Error('Failed to fetch fund change records');
@@ -256,6 +267,12 @@ const fetchFundChangeRecords = async () => {
 // 切换筛选
 const switchFilter = (filter: string) => {
   recordFilter.value = filter;
+  fetchFundChangeRecords();
+};
+
+// 切换充值类型筛选
+const switchChargeType = (type: number) => {
+  chargeTypeFilter.value = type;
   fetchFundChangeRecords();
 };
 
@@ -281,9 +298,11 @@ const exportToExcel = async () => {
     const exportData = fundChangeRecords.value.map(record => ({
       '交易时间': record.transaction_time,
       '类型说明': record.type_description,
+      '充值类型': record.charge_type_desc || '-',
       '变动金额': record.change_amount > 0 
         ? `+¥${formatCurrency(Math.abs(record.change_amount))}` 
         : `-¥${formatCurrency(Math.abs(record.change_amount))}`,
+      '操作人': record.operator || '-',
       '状态': record.status,
       '备注/原因': record.remarks || '-'
     }));
@@ -296,7 +315,9 @@ const exportToExcel = async () => {
     const colWidths = [
       { wch: 20 }, // 交易时间
       { wch: 25 }, // 类型说明
+      { wch: 16 }, // 充值类型
       { wch: 15 }, // 变动金额
+      { wch: 14 }, // 操作人
       { wch: 10 }, // 状态
       { wch: 30 }  // 备注/原因
     ];
@@ -760,6 +781,7 @@ const closeRechargeModal = () => {
   showRechargeModal.value = false;
   rechargeAmount.value = 0;
   rechargeRemarks.value = '';
+  rechargeChargeType.value = 1;
 };
 
 // 快速选择金额
@@ -793,6 +815,7 @@ const confirmRecharge = async () => {
       body: JSON.stringify({
         user_str_id: userStrId.value,
         amount: rechargeAmount.value,
+        charge_type: rechargeChargeType.value,
         remarks: rechargeRemarks.value
       })
     });
@@ -832,7 +855,9 @@ const confirmRecharge = async () => {
     // 从当前余额滚动到新余额，优化用户体验（不再从0开始）
     animateBalance(currentBalance, newBalance);
     
-    // 充值后数据实时联动：刷新资金变动明细表格，立即显示刚刚的充值记录
+    // 充值后数据实时联动：切回全部筛选，保证新记录可见
+    recordFilter.value = 'all';
+    chargeTypeFilter.value = 0;
     // 注意：不再调用 fetchUserDetail，因为我们已经手动更新了余额，避免覆盖
     await fetchFundChangeRecords();
     
@@ -864,6 +889,7 @@ const closeDeductionModal = () => {
   showDeductionModal.value = false;
   deductionAmount.value = 0;
   deductionRemarks.value = '';
+  deductionChargeType.value = 1;
 };
 
 // 快速选择扣减金额
@@ -903,6 +929,7 @@ const confirmDeduction = async () => {
       body: JSON.stringify({
         user_str_id: userStrId.value,
         amount: deductionAmount.value,
+        charge_type: deductionChargeType.value,
         remarks: deductionRemarks.value
       })
     });
@@ -949,7 +976,10 @@ const confirmDeduction = async () => {
     // 从当前余额滚动到新余额
     animateBalance(currentBalance, newBalance);
     
-    // 扣减后数据实时联动：刷新资金变动明细表格、消费记录和余额历史
+    // 扣减后数据实时联动：切回全部筛选，保证新记录可见
+    recordFilter.value = 'all';
+    chargeTypeFilter.value = 0;
+    // 刷新资金变动明细表格、消费记录和余额历史
     await Promise.all([
       fetchFundChangeRecords(),
       fetchConsumptionRecords(),
@@ -1084,6 +1114,9 @@ const loadUserData = async () => {
   fundChangeRecords.value = [];
   selectedDays.value = 7;
   recordFilter.value = 'all';
+  rechargeChargeType.value = 1;
+  deductionChargeType.value = 1;
+  chargeTypeFilter.value = 0;
   displayBalance.value = 0;
   targetBalance.value = 0;
   
@@ -1312,6 +1345,16 @@ onUnmounted(() => {
           >
             仅扣减
           </button>
+          <select
+            v-model.number="chargeTypeFilter"
+            class="charge-type-select"
+            @change="switchChargeType(chargeTypeFilter)"
+          >
+            <option :value="0">全部充值类型</option>
+            <option :value="1">用户常规充值</option>
+            <option :value="2">系统故障补偿</option>
+            <option :value="3">活动赠送</option>
+          </select>
           <button class="export-btn" @click="exportToExcel" :disabled="fundChangeRecords.length === 0" title="导出当前筛选条件下的资金变动明细">
             📊 {{ fundChangeRecords.length === 0 ? '无数据可导出' : '导出 Excel' }}
           </button>
@@ -1323,7 +1366,9 @@ onUnmounted(() => {
             <tr>
               <th>交易时间</th>
               <th>类型说明</th>
+              <th>充值类型</th>
               <th>变动金额</th>
+              <th>操作人</th>
               <th>状态</th>
               <th>备注/原因</th>
             </tr>
@@ -1346,6 +1391,7 @@ onUnmounted(() => {
                 </span>
                 <span class="type-desc">{{ record.type_description }}</span>
               </td>
+              <td>{{ record.charge_type_desc || '-' }}</td>
               <td>
                 <span 
                   class="amount-pill"
@@ -1354,11 +1400,12 @@ onUnmounted(() => {
                   {{ record.change_amount > 0 ? '+' : '-' }}¥{{ formatCurrency(Math.abs(record.change_amount)) }}
                 </span>
               </td>
+              <td>{{ record.operator || '-' }}</td>
               <td><span class="status-badge success">{{ record.status }}</span></td>
               <td>{{ record.remarks || '-' }}</td>
             </tr>
             <tr v-if="fundChangeRecords.length === 0">
-              <td colspan="5" style="text-align: center; color: #9ca3af; padding: 40px;">
+              <td colspan="7" style="text-align: center; color: #9ca3af; padding: 40px;">
                 暂无数据
               </td>
             </tr>
@@ -1405,6 +1452,14 @@ onUnmounted(() => {
               />
             </div>
           </div>
+        <div class="input-group">
+          <label>充值类型</label>
+          <select v-model.number="rechargeChargeType" class="modal-select">
+            <option :value="1">用户常规充值</option>
+            <option :value="2">系统故障补偿</option>
+            <option :value="3">活动赠送</option>
+          </select>
+        </div>
           <div class="quick-amounts">
             <button 
               v-for="amount in [100, 500, 1000, 5000]" 
@@ -1506,6 +1561,14 @@ onUnmounted(() => {
               />
             </div>
           </div>
+        <div class="input-group">
+          <label>扣减类型</label>
+          <select v-model.number="deductionChargeType" class="modal-select">
+            <option :value="1">用户常规充值</option>
+            <option :value="2">系统故障补偿</option>
+            <option :value="3">活动赠送</option>
+          </select>
+        </div>
           <div class="quick-amounts">
             <button 
               v-for="amount in [100, 500, 1000, 5000]" 
@@ -1553,6 +1616,18 @@ onUnmounted(() => {
             <div class="summary-item">
               <span class="summary-label">扣减金额</span>
               <span class="summary-value amount-negative">-{{ formatCurrency(deductionAmount) }}</span>
+            </div>
+            <div class="summary-item">
+              <span class="summary-label">扣减类型</span>
+              <span class="summary-value">
+                {{
+                  deductionChargeType === 1
+                    ? '用户常规充值'
+                    : deductionChargeType === 2
+                      ? '系统故障补偿'
+                      : '活动赠送'
+                }}
+              </span>
             </div>
             <div class="summary-item">
               <span class="summary-label">扣减后余额</span>
@@ -2079,6 +2154,28 @@ onUnmounted(() => {
   transition: all 0.2s;
 }
 
+.charge-type-select {
+  padding: 6px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: white;
+  color: #6b7280;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.charge-type-select:hover {
+  border-color: #3b82f6;
+  color: #3b82f6;
+}
+
+.charge-type-select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
 .filter-btn:hover {
   border-color: #3b82f6;
   color: #3b82f6;
@@ -2403,6 +2500,24 @@ onUnmounted(() => {
   font-size: 18px;
   font-weight: 600;
   transition: all 0.2s;
+}
+
+.modal-select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #374151;
+  background: #ffffff;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.modal-select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
 .amount-input:focus {

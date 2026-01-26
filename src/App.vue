@@ -53,14 +53,18 @@ const addTab = (path: string, title: string) => {
   const currentActiveTab = tabs.value.find(tab => tab.path === activeTab.value);
   
   if (isDetail) {
-    // 如果是详情页，查找对应的基础路径标签页并更新
-    const baseTab = tabs.value.find(tab => {
-      const tabBasePath = getBasePath(tab.path);
-      return tabBasePath === basePath && !isDetailRoute(tab.path, basePath);
-    });
+    // 如果是详情页，优先复用当前激活标签页，避免重复创建同名标签
+    const currentTab = tabs.value.find(tab => tab.path === activeTab.value);
+    if (currentTab && getBasePath(currentTab.path) === basePath) {
+      currentTab.path = path;
+      currentTab.title = title;
+      activeTab.value = path;
+      return;
+    }
     
+    // 否则查找同一基础路径的标签页并更新
+    const baseTab = tabs.value.find(tab => getBasePath(tab.path) === basePath);
     if (baseTab) {
-      // 更新现有标签页的路径和标题，保持在同一个标签页内
       baseTab.path = path;
       baseTab.title = title;
       activeTab.value = path;
