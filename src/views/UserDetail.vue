@@ -117,6 +117,10 @@ const fundChangeRecords = ref<FundChangeRecord[]>([]);
 const selectedDays = ref(7); // 7 或 30
 const recordFilter = ref('all'); // all, recharge, deduction
 const chargeTypeFilter = ref(0); // 0=全部, 1=常规, 2=补偿, 3=赠送
+const recordPage = ref(1);
+const recordPageSize = ref(10);
+const recordPageSizeOptions = [10, 20, 50, 100];
+const recordPageInput = ref(1);
 const lineChart = shallowRef<echarts.ECharts | null>(null);
 const barChart = shallowRef<echarts.ECharts | null>(null);
 const isChartInitialized = ref(false); // 标记图表是否已初始化
@@ -139,6 +143,45 @@ const copyToastMessage = ref('');
 const displayBalance = ref(0);
 const targetBalance = ref(0);
 const isBalanceAnimating = ref(false);
+
+const totalRecordCount = computed(() => fundChangeRecords.value.length);
+const totalRecordPages = computed(() => Math.max(1, Math.ceil(totalRecordCount.value / recordPageSize.value)));
+const recordPageStart = computed(() => {
+  if (totalRecordCount.value === 0) return 0;
+  return (recordPage.value - 1) * recordPageSize.value + 1;
+});
+const recordPageEnd = computed(() => Math.min(totalRecordCount.value, recordPage.value * recordPageSize.value));
+const pagedFundChangeRecords = computed(() => {
+  const start = (recordPage.value - 1) * recordPageSize.value;
+  return fundChangeRecords.value.slice(start, start + recordPageSize.value);
+});
+
+const clampRecordPage = (page: number) => {
+  return Math.min(Math.max(1, page), totalRecordPages.value);
+};
+
+const resetRecordPaging = () => {
+  recordPage.value = 1;
+  recordPageInput.value = 1;
+};
+
+const goToRecordPage = (page: number) => {
+  recordPage.value = clampRecordPage(page);
+  recordPageInput.value = recordPage.value;
+};
+
+const changeRecordPageSize = (size: number) => {
+  recordPageSize.value = size;
+  resetRecordPaging();
+};
+
+const jumpToRecordPage = () => {
+  if (!recordPageInput.value) {
+    recordPageInput.value = recordPage.value;
+    return;
+  }
+  goToRecordPage(recordPageInput.value);
+};
 
 // 获取用户详情
 const fetchUserDetail = async (skipAnimation: boolean = false) => {
@@ -267,6 +310,8 @@ const fetchFundChangeRecords = async () => {
     if (!response.ok) throw new Error('Failed to fetch fund change records');
     const data: { list: FundChangeRecord[] } = await response.json();
     fundChangeRecords.value = data.list || [];
+    recordPage.value = clampRecordPage(recordPage.value);
+    recordPageInput.value = recordPage.value;
   } catch (error) {
     console.error('Error fetching fund change records:', error);
   }
@@ -275,12 +320,14 @@ const fetchFundChangeRecords = async () => {
 // 切换筛选
 const switchFilter = (filter: string) => {
   recordFilter.value = filter;
+  resetRecordPaging();
   fetchFundChangeRecords();
 };
 
 // 切换充值类型筛选
 const switchChargeType = (type: number) => {
   chargeTypeFilter.value = type;
+  resetRecordPaging();
   fetchFundChangeRecords();
 };
 
@@ -866,6 +913,7 @@ const confirmRecharge = async () => {
     // 充值后数据实时联动：切回全部筛选，保证新记录可见
     recordFilter.value = 'all';
     chargeTypeFilter.value = 0;
+    resetRecordPaging();
     // 注意：不再调用 fetchUserDetail，因为我们已经手动更新了余额，避免覆盖
     await fetchFundChangeRecords();
     
@@ -987,6 +1035,7 @@ const confirmDeduction = async () => {
     // 扣减后数据实时联动：切回全部筛选，保证新记录可见
     recordFilter.value = 'all';
     chargeTypeFilter.value = 0;
+    resetRecordPaging();
     // 刷新资金变动明细表格、消费记录和余额历史
     await Promise.all([
       fetchFundChangeRecords(),
@@ -1383,7 +1432,7 @@ onUnmounted(() => {
           </thead>
           <tbody>
             <tr 
-              v-for="(record, index) in fundChangeRecords" 
+              v-for="(record, index) in pagedFundChangeRecords" 
               :key="index"
               :class="record.change_amount > 0 ? 'row-recharge' : 'row-deduction'"
             >
@@ -1412,13 +1461,51 @@ onUnmounted(() => {
               <td><span class="status-badge success">{{ record.status }}</span></td>
               <td>{{ record.remarks || '-' }}</td>
             </tr>
-            <tr v-if="fundChangeRecords.length === 0">
+            <tr v-if="totalRecordCount === 0">
               <td colspan="7" style="text-align: center; color: #9ca3af; padding: 40px;">
                 暂无数据
               </td>
             </tr>
           </tbody>
         </table>
+      </div>
+      <div v-if="totalRecordCount > 0" class="pagination-bar">
+        <div class="pagination-info">
+          共 <span class="pagination-strong">{{ totalRecordCount }}</span> 条，当前显示
+          <span class="pagination-strong">{{ recordPageStart }}</span> - <span class="pagination-strong">{{ recordPageEnd }}</span>
+        </div>
+        <div class="pagination-controls">
+          <button class="page-btn" :disabled="recordPage === 1" @click="goToRecordPage(1)">首页</button>
+          <button class="page-btn" :disabled="recordPage === 1" @click="goToRecordPage(recordPage - 1)">上一页</button>
+          <div class="page-badge">第 {{ recordPage }} / {{ totalRecordPages }} 页</div>
+          <button class="page-btn" :disabled="recordPage === totalRecordPages" @click="goToRecordPage(recordPage + 1)">下一页</button>
+          <button class="page-btn" :disabled="recordPage === totalRecordPages" @click="goToRecordPage(totalRecordPages)">末页</button>
+          <div class="page-size">
+            <span>每页</span>
+            <select
+              v-model.number="recordPageSize"
+              class="page-size-select"
+              @change="changeRecordPageSize(recordPageSize)"
+            >
+              <option v-for="size in recordPageSizeOptions" :key="size" :value="size">
+                {{ size }}
+              </option>
+            </select>
+            <span>条</span>
+          </div>
+          <div class="page-jump">
+            <span>跳转</span>
+            <input
+              type="number"
+              min="1"
+              :max="totalRecordPages"
+              v-model.number="recordPageInput"
+              class="page-jump-input"
+              @keyup.enter="jumpToRecordPage"
+            />
+            <button class="page-btn ghost" @click="jumpToRecordPage">确定</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -2266,6 +2353,134 @@ onUnmounted(() => {
 
 .detail-table tbody tr:hover {
   background-color: #f9fafb;
+}
+
+.pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #f3f4f6;
+}
+
+.pagination-info {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.pagination-strong {
+  color: #111827;
+  font-weight: 600;
+}
+
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.page-btn {
+  padding: 6px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: white;
+  color: #374151;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.page-btn:hover:not(:disabled) {
+  border-color: #3b82f6;
+  color: #2563eb;
+  box-shadow: 0 2px 6px rgba(59, 130, 246, 0.15);
+}
+
+.page-btn:disabled {
+  color: #9ca3af;
+  background: #f9fafb;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.page-btn.ghost {
+  background: #f3f4f6;
+}
+
+.page-badge {
+  padding: 6px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #f9fafb;
+  font-size: 13px;
+  color: #374151;
+}
+
+.page-size {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.page-size-select {
+  padding: 4px 24px 4px 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: white;
+  color: #374151;
+  font-size: 13px;
+  line-height: 18px;
+  height: 28px;
+  cursor: pointer;
+  transition: all 0.2s;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 12px;
+}
+
+.page-size-select:hover {
+  border-color: #3b82f6;
+  color: #2563eb;
+}
+
+.page-size-select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.page-jump {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.page-jump-input {
+  width: 64px;
+  padding: 4px 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #374151;
+  transition: all 0.2s;
+}
+
+.page-jump-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
 .row-recharge td:first-child {
