@@ -47,47 +47,22 @@ const getBasePath = (path: string): string => {
 // 添加标签页
 const addTab = (path: string, title: string) => {
   const basePath = getBasePath(path);
-  const isDetail = isDetailRoute(path, basePath);
+  // const isDetail = isDetailRoute(path, basePath); // 不再需要单独判断是否为详情页来决定复用逻辑
   
-  // 检查当前激活的标签页
-  const currentActiveTab = tabs.value.find(tab => tab.path === activeTab.value);
+  // 查找是否存在同一模块（相同basePath）的标签页
+  // 无论是详情页还是列表页，只要属于同一个模块，就复用同一个标签页
+  const existingTab = tabs.value.find(tab => getBasePath(tab.path) === basePath);
   
-  if (isDetail) {
-    // 如果是详情页，优先复用当前激活标签页，避免重复创建同名标签
-    const currentTab = tabs.value.find(tab => tab.path === activeTab.value);
-    if (currentTab && getBasePath(currentTab.path) === basePath) {
-      currentTab.path = path;
-      currentTab.title = title;
-      activeTab.value = path;
-      return;
+  if (existingTab) {
+    // 复用现有标签页，更新路径和标题
+    existingTab.path = path;
+    existingTab.title = title;
+    
+    // 如果回到了列表页（路径等于基础路径），清除之前详情页可能设置的服务名称
+    if (path === basePath) {
+      existingTab.serviceName = undefined;
     }
     
-    // 否则查找同一基础路径的标签页并更新
-    const baseTab = tabs.value.find(tab => getBasePath(tab.path) === basePath);
-    if (baseTab) {
-      baseTab.path = path;
-      baseTab.title = title;
-      activeTab.value = path;
-      return;
-    }
-  } else {
-    // 如果是从详情页返回到列表页，检查当前激活的标签页是否是详情页
-    if (currentActiveTab && isDetailRoute(currentActiveTab.path, getBasePath(currentActiveTab.path))) {
-      const currentBasePath = getBasePath(currentActiveTab.path);
-      // 如果当前标签页是详情页，且要跳转到对应的列表页，则更新当前标签页
-      if (currentBasePath === path) {
-        currentActiveTab.path = path;
-        currentActiveTab.title = title;
-        activeTab.value = path;
-        return;
-      }
-    }
-  }
-  
-  // 检查标签页是否已存在（精确匹配）
-  const existingTab = tabs.value.find(tab => tab.path === path);
-  if (existingTab) {
-    // 如果标签页已存在，直接切换到该标签页，不创建新的
     activeTab.value = path;
     return;
   }
