@@ -60,7 +60,7 @@ import * as XLSX from 'xlsx';
 const route = useRoute();
 const router = useRouter();
 // 使用计算属性动态获取路由参数，这样当路由参数变化时会自动更新
-const userStrId = computed(() => route.params.user_str_id as string);
+const userId = computed(() => route.params.user_id as string);
 const apiBaseUrl = import.meta.env.BASE_URL;
 const getAuthHeaders = (): Record<string, string> => {
   const token = localStorage.getItem('token');
@@ -71,7 +71,7 @@ const getAuthHeaders = (): Record<string, string> => {
 interface UserDetail {
   user: {
     id: number;
-    user_str_id: string;
+    user_id: string;
     username: string;
     phone: string;
     email: string;
@@ -186,7 +186,7 @@ const jumpToRecordPage = () => {
 // 获取用户详情
 const fetchUserDetail = async (skipAnimation: boolean = false) => {
   try {
-    const response = await fetch(`${apiBaseUrl}api/userfund/user/${userStrId.value}`, {
+    const response = await fetch(`${apiBaseUrl}api/userfund/user/${userId.value}`, {
       headers: getAuthHeaders(),
       credentials: 'include',
     });
@@ -246,8 +246,8 @@ const animateBalance = (fromValue?: number, toValue?: number) => {
 // 获取消费记录
 const fetchConsumptionRecords = async () => {
   try {
-    console.log(`Fetching consumption records for ${userStrId.value}, days: ${selectedDays.value}`);
-    const url = `${apiBaseUrl}api/userfund/user/${userStrId.value}/consumption?days=${selectedDays.value}`;
+    console.log(`Fetching consumption records for ${userId.value}, days: ${selectedDays.value}`);
+    const url = `${apiBaseUrl}api/userfund/user/${userId.value}/consumption?days=${selectedDays.value}`;
     console.log('API URL:', url);
     const response = await fetch(url, {
       headers: getAuthHeaders(),
@@ -272,8 +272,8 @@ const fetchConsumptionRecords = async () => {
 // 获取余额历史
 const fetchBalanceHistory = async () => {
   try {
-    console.log(`Fetching balance history for ${userStrId.value}, days: ${selectedDays.value}`);
-    const url = `${apiBaseUrl}api/userfund/user/${userStrId.value}/balance?days=${selectedDays.value}`;
+    console.log(`Fetching balance history for ${userId.value}, days: ${selectedDays.value}`);
+    const url = `${apiBaseUrl}api/userfund/user/${userId.value}/balance?days=${selectedDays.value}`;
     console.log('API URL:', url);
     const response = await fetch(url, {
       headers: getAuthHeaders(),
@@ -303,7 +303,7 @@ const fetchFundChangeRecords = async () => {
     if (chargeTypeFilter.value > 0) {
       params.append('charge_type', chargeTypeFilter.value.toString());
     }
-    const response = await fetch(`${apiBaseUrl}api/userfund/user/${userStrId.value}/fund-changes?${params.toString()}`, {
+    const response = await fetch(`${apiBaseUrl}api/userfund/user/${userId.value}/fund-changes?${params.toString()}`, {
       headers: getAuthHeaders(),
       credentials: 'include',
     });
@@ -877,7 +877,7 @@ const confirmRecharge = async () => {
       headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
       credentials: 'include',
       body: JSON.stringify({
-        user_str_id: userStrId.value,
+        user_id: userId.value,
         amount: rechargeAmount.value,
         charge_type: rechargeChargeType.value,
         remarks: rechargeRemarks.value
@@ -930,7 +930,7 @@ const confirmRecharge = async () => {
     // 这样当用户返回列表页时，卡片上的余额会实时更新
     window.dispatchEvent(new CustomEvent('user-balance-updated', {
       detail: {
-        user_str_id: userStrId.value,
+        user_id: userId.value,
         new_balance: newBalance
       }
     }));
@@ -992,7 +992,7 @@ const confirmDeduction = async () => {
       headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
       credentials: 'include',
       body: JSON.stringify({
-        user_str_id: userStrId.value,
+        user_id: userId.value,
         amount: deductionAmount.value,
         charge_type: deductionChargeType.value,
         remarks: deductionRemarks.value
@@ -1055,7 +1055,7 @@ const confirmDeduction = async () => {
     // 发送全局事件，通知用户列表页更新该用户的余额
     window.dispatchEvent(new CustomEvent('user-balance-updated', {
       detail: {
-        user_str_id: userStrId.value,
+        user_id: userId.value,
         new_balance: newBalance
       }
     }));
@@ -1085,7 +1085,7 @@ const formatDateTime = (dateStr: string) => {
 
 // 格式化金额
 const formatCurrency = (value: number) => {
-  return value.toFixed(2);
+  return value.toFixed(8);
 };
 
 // 截断文本，过长时显示省略号
@@ -1107,7 +1107,7 @@ const goBackToList = () => {
 const copyUserId = async () => {
   if (!userDetail.value) return;
   
-  const userId = userDetail.value.user.user_str_id;
+  const userId = userDetail.value.user.user_id;
   
   try {
     // 优先使用现代 Clipboard API
@@ -1170,7 +1170,7 @@ const onResize = () => {
 
 // 加载所有数据的统一函数
 const loadUserData = async () => {
-  if (!userStrId.value) return;
+  if (!userId.value) return;
   
   loading.value = true;
   // 重置状态
@@ -1222,7 +1222,7 @@ const loadUserData = async () => {
 
 // 监听路由参数变化，当用户ID变化时重新加载数据
 watch(
-  () => route.params.user_str_id,
+  () => route.params.user_id,
   async (newUserId, oldUserId) => {
     // 只有当用户ID真正变化时才重新加载
     if (newUserId && newUserId !== oldUserId) {
@@ -1283,7 +1283,7 @@ onUnmounted(() => {
           <div class="user-info">
             <h2 class="user-name" :title="userDetail.user.username">{{ userDetail.user.username }}</h2>
             <div class="user-id">
-              ID: {{ userDetail.user.user_str_id }}
+              ID: {{ userDetail.user.user_id }}
               <button class="copy-btn" @click="copyUserId">📋</button>
             </div>
             <div class="user-tags">

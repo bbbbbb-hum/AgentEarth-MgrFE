@@ -42,7 +42,7 @@ interface UserStats {
 
 interface UserItem {
   id: number;
-  user_str_id: string;
+  user_id: string;
   username: string;
   phone: string;
   email: string;
@@ -216,7 +216,7 @@ const fetchUserList = async () => {
 
 // Helpers
 const formatCurrency = (value: number) => {
-  return value.toFixed(2);
+  return value.toFixed(8);
 };
 
 const formatDate = (dateStr: string) => {
@@ -504,21 +504,21 @@ const pageNumbers = computed(() => {
   return pages;
 });
 
-const goToUserDetail = (userStrId: string) => {
+const goToUserDetail = (userId: string) => {
   // 使用 replace 而不是 push，这样不会在导航栏创建新标签页
-  router.replace(`/user-fund/${userStrId}`);
+  router.replace(`/user-fund/${userId}`);
 };
 
 // 监听用户余额更新事件，实时更新列表中的余额
 const handleBalanceUpdate = (event: Event) => {
-  const customEvent = event as CustomEvent<{ user_str_id: string; new_balance: number }>;
-  const { user_str_id, new_balance } = customEvent.detail;
+  const customEvent = event as CustomEvent<{ user_id: string; new_balance: number }>;
+  const { user_id, new_balance } = customEvent.detail;
   
   // 查找并更新对应用户的余额
-  const userIndex = userList.value.findIndex(user => user.user_str_id === user_str_id);
+  const userIndex = userList.value.findIndex(user => user.user_id === user_id);
   if (userIndex !== -1) {
     userList.value[userIndex].balance = new_balance;
-    console.log(`用户 ${user_str_id} 的余额已更新为 ${new_balance}`);
+    console.log(`用户 ${user_id} 的余额已更新为 ${new_balance}`);
   }
 };
 
@@ -703,7 +703,7 @@ onUnmounted(() => {
           v-for="user in userList" 
           :key="user.id" 
           class="user-card"
-          @click="goToUserDetail(user.user_str_id)"
+          @click="goToUserDetail(user.user_id)"
           style="cursor: pointer;"
         >
           <!-- 底部滑动条 -->
