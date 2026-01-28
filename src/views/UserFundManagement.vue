@@ -216,7 +216,7 @@ const fetchUserList = async () => {
 
 // Helpers
 const formatCurrency = (value: number) => {
-  return value.toFixed(8);
+  return value.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
 const formatDate = (dateStr: string) => {

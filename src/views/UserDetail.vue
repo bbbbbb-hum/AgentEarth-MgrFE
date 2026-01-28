@@ -1085,7 +1085,7 @@ const formatDateTime = (dateStr: string) => {
 
 // 格式化金额
 const formatCurrency = (value: number) => {
-  return value.toFixed(8);
+  return value.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
 // 截断文本，过长时显示省略号

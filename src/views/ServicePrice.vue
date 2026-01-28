@@ -270,13 +270,8 @@ const handlePriceInput = (event: Event, type: 'batch' | 'single') => {
   const target = event.target as HTMLInputElement;
   let value = target.value;
   
-  // Limit to integer
-  if (value.indexOf('.') !== -1) {
-    value = value.split('.')[0];
-    target.value = value;
-  }
-
-  const numVal = parseInt(value);
+  // Allow decimal
+  const numVal = parseFloat(value);
   if (!isNaN(numVal)) {
     const finalVal = Math.max(0, numVal);
     if (type === 'batch') {
@@ -395,7 +390,7 @@ onMounted(() => {
               type="number" 
               placeholder="输入统一价格" 
               class="batch-price-input"
-              step="1"
+              step="any"
               min="0"
               @input="(event) => handlePriceInput(event, 'batch')"
               @keyup.enter="handleBatchUpdatePrice"
@@ -464,7 +459,7 @@ onMounted(() => {
                       @blur="savePrice(item)" 
                       @keyup.enter="savePrice(item)"
                       @keyup.esc="cancelEdit"
-                      step="1"
+                      step="any"
                       min="0"
                       @input="(event: Event) => handlePriceInput(event, 'single')"
                     />
