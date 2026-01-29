@@ -215,8 +215,16 @@ const fetchUserList = async () => {
 };
 
 // Helpers
-const formatCurrency = (value: number) => {
-  return value.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const formatCount = (value: number | null | undefined) => {
+  const num = typeof value === 'number' ? value : Number(value ?? 0);
+  if (!Number.isFinite(num)) return '0';
+  return Math.trunc(num).toLocaleString('zh-CN');
+};
+
+const formatCurrency = (value: number | null | undefined) => {
+  const num = typeof value === 'number' ? value : Number(value ?? 0);
+  if (!Number.isFinite(num)) return '0.00';
+  return num.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
 const formatDate = (dateStr: string) => {
@@ -552,14 +560,14 @@ onUnmounted(() => {
         <div class="stats-icon">👥</div>
         <div class="stats-content">
           <div class="stats-label">总注册用户</div>
-          <div class="stats-value">{{ stats.total_users ?? 0 }}</div>
+          <div class="stats-value">{{ formatCount(stats.total_users ?? 0) }}</div>
         </div>
       </div>
       <div class="stats-card">
         <div class="stats-icon">⚡</div>
         <div class="stats-content">
           <div class="stats-label">今日活跃</div>
-          <div class="stats-value">{{ stats.daily_active_users ?? 0 }}</div>
+          <div class="stats-value">{{ formatCount(stats.daily_active_users ?? 0) }}</div>
         </div>
       </div>
       <div class="stats-card">
@@ -582,7 +590,7 @@ onUnmounted(() => {
     <!-- User List Section -->
     <section class="user-list-section">
       <div class="section-header">
-        <h2 class="section-title">用户目录 (共{{ totalUsers }}条)</h2>
+        <h2 class="section-title">用户目录 (共{{ formatCount(totalUsers) }}条)</h2>
         <div class="header-controls">
           <!-- 筛选和排序 -->
           <div class="filter-sort-controls">
@@ -768,7 +776,7 @@ onUnmounted(() => {
             </option>
           </select>
           <span class="page-info">
-            共 {{ totalUsers }} 条记录，第 {{ currentPage }} / {{ totalPages }} 页
+            共 {{ formatCount(totalUsers) }} 条记录，第 {{ formatCount(currentPage) }} / {{ formatCount(totalPages) }} 页
           </span>
         </div>
         

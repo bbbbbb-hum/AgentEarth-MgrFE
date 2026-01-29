@@ -6,6 +6,7 @@ interface ServiceItem {
   ServerName: string;
   ServerId: string;
   Price: number;
+  PriceRaw?: string;
   Enabled: boolean;
 }
 
@@ -146,7 +147,18 @@ const fetchServiceList = async () => {
     const data: ApiResponse = await response.json();
 
     if (data.code === 0) {
-      serviceList.value = data.data.list || [];
+      const rawList = data.data.list || [];
+      serviceList.value = rawList.map((item: any) => {
+        const rawPrice = item.Price ?? item.XlcreditPrice ?? item.xlcredit_price;
+        const parsedPrice = Number(rawPrice);
+        const safePrice = Number.isFinite(parsedPrice) ? parsedPrice : 0;
+        const rawString = typeof rawPrice === 'string' ? rawPrice : undefined;
+        return {
+          ...item,
+          Price: safePrice,
+          PriceRaw: rawString,
+        } as ServiceItem;
+      });
       total.value = data.data.total || 0;
     } else {
       throw new Error(data.message || 'Failed to fetch service list');
@@ -264,6 +276,17 @@ const handleSort = (field: string, order: string) => {
   sortOrder.value = order;
   currentPage.value = 1;
   fetchServiceList();
+};
+
+const formatPrice = (item: ServiceItem) => {
+  if (item.PriceRaw) {
+    const match = item.PriceRaw.match(/\.(\d+)$/);
+    if (match && match[1].length > 2) {
+      return item.PriceRaw;
+    }
+  }
+  const safePrice = Number.isFinite(item.Price) ? item.Price : 0;
+  return safePrice.toFixed(2);
 };
 
 const handlePriceInput = (event: Event, type: 'batch' | 'single') => {
@@ -464,7 +487,7 @@ onMounted(() => {
                       @input="(event: Event) => handlePriceInput(event, 'single')"
                     />
                   </div>
-                  <span v-else>{{ item.Price }}</span>
+                  <span v-else>{{ formatPrice(item) }}</span>
                 </td>
                 <td>
                   <span :class="['status-tag', item.Enabled ? 'status-active' : 'status-inactive']">
@@ -568,6 +591,7 @@ onMounted(() => {
 .selection-info { color: #666; margin-right: 5px; }
 .selection-count { color: #3498db; font-weight: bold; }
 .search-input { padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; width: 250px; }
+.filter-select:focus { border-color: #3498db; }
 
 .table-section {
   background-color: #fff;

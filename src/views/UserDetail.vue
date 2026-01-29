@@ -395,7 +395,7 @@ const exportToExcel = async () => {
 
     // 显示成功提示
     showSuccessToast.value = true;
-    successMessage.value = `✅ Excel 文件已导出（共 ${fundChangeRecords.value.length} 条记录）：${fileName}`;
+    successMessage.value = `✅ Excel 文件已导出（共 ${formatNumber(fundChangeRecords.value.length)} 条记录）：${fileName}`;
     setTimeout(() => {
       showSuccessToast.value = false;
     }, 4000);
@@ -620,7 +620,7 @@ const updateCharts = () => {
           const p = params[0];
           const date = (p && p.axisValue != null) ? String(p.axisValue) : '';
           const value = (p && p.value != null) ? p.value : 0;
-          return date + '<br/>账户余额 : ' + value;
+          return date + '<br/>账户余额 : ' + formatNumber(value);
         }
       },
       dataZoom: showZoom ? [dataZoomSlider] : undefined,
@@ -640,7 +640,7 @@ const updateCharts = () => {
       yAxis: {
         type: 'value',
         axisLine: { lineStyle: { color: '#e5e7eb' } },
-        axisLabel: { color: '#6b7280', formatter: '{value}' },
+        axisLabel: { color: '#6b7280', formatter: (value: number) => formatNumber(value) },
         splitLine: { lineStyle: { color: '#f3f4f6' } }
       },
       series: [{
@@ -752,9 +752,9 @@ const updateCharts = () => {
           const deductVal = params[1] ? getVal(params[1].value) : 0;
           const totalVal = (selfVal || 0) + (deductVal || 0);
           return date + '<br/>' +
-            '<span style="color:#10b981">自行消费 : ' + selfVal + '</span><br/>' +
-            '<span style="color:#ef4444">系统扣减 : ' + deductVal + '</span><br/>' +
-            '<span style="color:#111827">总消费 : ' + totalVal + '</span>';
+            '<span style="color:#10b981">自行消费 : ' + formatNumber(selfVal) + '</span><br/>' +
+            '<span style="color:#ef4444">系统扣减 : ' + formatNumber(deductVal) + '</span><br/>' +
+            '<span style="color:#111827">总消费 : ' + formatNumber(totalVal) + '</span>';
         }
       },
       dataZoom: barShowZoom ? [barDataZoomSlider] : undefined,
@@ -773,7 +773,7 @@ const updateCharts = () => {
       yAxis: {
         type: 'value',
         axisLine: { lineStyle: { color: '#e5e7eb' } },
-        axisLabel: { color: '#6b7280', formatter: '{value}' },
+        axisLabel: { color: '#6b7280', formatter: (value: number) => formatNumber(value) },
         splitLine: { lineStyle: { color: '#f3f4f6' } }
       },
       series: [
@@ -890,7 +890,7 @@ const confirmRecharge = async () => {
     // 显示成功提示：用户名过长时截断
     const username = userDetail.value?.user.username || '';
     const truncatedUsername = truncateText(username, 15); // 用户名最多显示15个字符
-    successMessage.value = `充值成功! 已为${truncatedUsername} 充值 ${rechargeAmount.value} 积分`;
+    successMessage.value = `充值成功! 已为${truncatedUsername} 充值 ${formatCurrency(rechargeAmount.value)} 积分`;
     showSuccessToast.value = true;
     
     // 保存当前余额，用于滚动动画（使用实际显示的余额）
@@ -1014,7 +1014,7 @@ const confirmDeduction = async () => {
     // 显示成功提示：用户名过长时截断
     const username = userDetail.value?.user.username || '';
     const truncatedUsername = truncateText(username, 15);
-    successMessage.value = `扣减成功! 已为${truncatedUsername} 扣减 ${deductionAmount.value} 积分`;
+    successMessage.value = `扣减成功! 已为${truncatedUsername} 扣减 ${formatCurrency(deductionAmount.value)} 积分`;
     showSuccessToast.value = true;
     
     // 保存当前余额，用于滚动动画
@@ -1083,9 +1083,16 @@ const formatDateTime = (dateStr: string) => {
   return date.toLocaleString('zh-CN');
 };
 
+// 格式化数值（统一两位小数）
+const formatNumber = (value: number | null | undefined) => {
+  const num = typeof value === 'number' ? value : Number(value ?? 0);
+  if (Number.isNaN(num)) return '0.00';
+  return num.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
 // 格式化金额
-const formatCurrency = (value: number) => {
-  return value.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const formatCurrency = (value: number | null | undefined) => {
+  return formatNumber(value);
 };
 
 // 截断文本，过长时显示省略号
@@ -1324,7 +1331,7 @@ onUnmounted(() => {
           </div>
           <div class="runway-section">
             <div class="runway-label">资金续航预估 (Runway)</div>
-            <div class="runway-value">~{{ userDetail.fund_runway }} 天</div>
+            <div class="runway-value">~{{ formatNumber(userDetail.fund_runway) }} 天</div>
             <div class="runway-bar">
               <div 
                 class="runway-progress" 
@@ -1480,13 +1487,13 @@ onUnmounted(() => {
       </div>
       <div v-if="totalRecordCount > 0" class="pagination-bar">
         <div class="pagination-info">
-          共 <span class="pagination-strong">{{ totalRecordCount }}</span> 条，当前显示
-          <span class="pagination-strong">{{ recordPageStart }}</span> - <span class="pagination-strong">{{ recordPageEnd }}</span>
+          共 <span class="pagination-strong">{{ formatNumber(totalRecordCount) }}</span> 条，当前显示
+          <span class="pagination-strong">{{ formatNumber(recordPageStart) }}</span> - <span class="pagination-strong">{{ formatNumber(recordPageEnd) }}</span>
         </div>
         <div class="pagination-controls">
           <button class="page-btn" :disabled="recordPage === 1" @click="goToRecordPage(1)">首页</button>
           <button class="page-btn" :disabled="recordPage === 1" @click="goToRecordPage(recordPage - 1)">上一页</button>
-          <div class="page-badge">第 {{ recordPage }} / {{ totalRecordPages }} 页</div>
+          <div class="page-badge">第 {{ formatNumber(recordPage) }} / {{ formatNumber(totalRecordPages) }} 页</div>
           <button class="page-btn" :disabled="recordPage === totalRecordPages" @click="goToRecordPage(recordPage + 1)">下一页</button>
           <button class="page-btn" :disabled="recordPage === totalRecordPages" @click="goToRecordPage(totalRecordPages)">末页</button>
           <div class="page-size">
@@ -1570,7 +1577,7 @@ onUnmounted(() => {
               class="quick-amount-btn"
               @click="selectAmount(amount)"
             >
-              +{{ amount }}
+              +{{ formatNumber(amount) }}
             </button>
           </div>
           <div class="input-group">
@@ -1678,7 +1685,7 @@ onUnmounted(() => {
               class="quick-amount-btn"
               @click="selectDeductionAmount(amount)"
             >
-              -{{ amount }}
+              -{{ formatNumber(amount) }}
             </button>
           </div>
           <div class="input-group">
