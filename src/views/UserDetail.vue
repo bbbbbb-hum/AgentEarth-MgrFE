@@ -135,6 +135,7 @@ const deductionAmount = ref(0);
 const deductionRemarks = ref('');
 const deductionChargeType = ref(1);
 const showSuccessToast = ref(false);
+const successTitle = ref('操作成功');
 const successMessage = ref('');
 const showCopyToast = ref(false);
 const copyToastMessage = ref('');
@@ -163,6 +164,15 @@ const clampRecordPage = (page: number) => {
 const resetRecordPaging = () => {
   recordPage.value = 1;
   recordPageInput.value = 1;
+};
+
+const setSuccessToast = (title: string, message: string, durationMs = 3000) => {
+  successTitle.value = title;
+  successMessage.value = message;
+  showSuccessToast.value = true;
+  setTimeout(() => {
+    showSuccessToast.value = false;
+  }, durationMs);
 };
 
 const goToRecordPage = (page: number) => {
@@ -336,11 +346,7 @@ const exportToExcel = async () => {
   try {
     // 检查是否有数据
     if (!fundChangeRecords.value || fundChangeRecords.value.length === 0) {
-      showSuccessToast.value = true;
-      successMessage.value = '暂无数据可导出';
-      setTimeout(() => {
-        showSuccessToast.value = false;
-      }, 2000);
+      setSuccessToast('无可导出数据', '暂无数据可导出', 2000);
       return;
     }
 
@@ -394,18 +400,14 @@ const exportToExcel = async () => {
     XLSX.writeFile(wb, fileName);
 
     // 显示成功提示
-    showSuccessToast.value = true;
-    successMessage.value = `✅ Excel 文件已导出（共 ${formatCount(fundChangeRecords.value.length)} 条记录）：${fileName}`;
-    setTimeout(() => {
-      showSuccessToast.value = false;
-    }, 4000);
+    setSuccessToast(
+      '导出成功',
+      `✅ Excel 文件已导出（共 ${formatCount(fundChangeRecords.value.length)} 条记录）：${fileName}`,
+      4000
+    );
   } catch (error) {
     console.error('导出 Excel 失败:', error);
-    showSuccessToast.value = true;
-    successMessage.value = '❌ 导出失败，请稍后重试';
-    setTimeout(() => {
-      showSuccessToast.value = false;
-    }, 3000);
+    setSuccessToast('导出失败', '❌ 导出失败，请稍后重试', 3000);
   }
 };
 
@@ -890,8 +892,10 @@ const confirmRecharge = async () => {
     // 显示成功提示：用户名过长时截断
     const username = userDetail.value?.user.username || '';
     const truncatedUsername = truncateText(username, 15); // 用户名最多显示15个字符
-    successMessage.value = `充值成功! 已为${truncatedUsername} 充值 ${formatCurrency(rechargeAmount.value)} 积分`;
-    showSuccessToast.value = true;
+    setSuccessToast(
+      '充值成功',
+      `已为${truncatedUsername} 充值 ${formatCurrency(rechargeAmount.value)} 积分`
+    );
     
     // 保存当前余额，用于滚动动画（使用实际显示的余额）
     const currentBalance = displayBalance.value || userDetail.value?.current_balance || 0;
@@ -935,9 +939,7 @@ const confirmRecharge = async () => {
       }
     }));
     
-    setTimeout(() => {
-      showSuccessToast.value = false;
-    }, 3000);
+    // toast auto hides in setSuccessToast
   } catch (error) {
     console.error('Recharge error:', error);
     alert('充值失败，请重试');
@@ -1014,8 +1016,10 @@ const confirmDeduction = async () => {
     // 显示成功提示：用户名过长时截断
     const username = userDetail.value?.user.username || '';
     const truncatedUsername = truncateText(username, 15);
-    successMessage.value = `扣减成功! 已为${truncatedUsername} 扣减 ${formatCurrency(deductionAmount.value)} 积分`;
-    showSuccessToast.value = true;
+    setSuccessToast(
+      '扣减成功',
+      `已为${truncatedUsername} 扣减 ${formatCurrency(deductionAmount.value)} 积分`
+    );
     
     // 保存当前余额，用于滚动动画
     const currentBalance = displayBalance.value || userDetail.value?.current_balance || 0;
@@ -1060,9 +1064,7 @@ const confirmDeduction = async () => {
       }
     }));
     
-    setTimeout(() => {
-      showSuccessToast.value = false;
-    }, 3000);
+    // toast auto hides in setSuccessToast
   } catch (error: any) {
     console.error('Deduction error:', error);
     alert(error.message || '扣减失败，请重试');
@@ -1765,7 +1767,7 @@ onUnmounted(() => {
       <div v-if="showSuccessToast" class="success-toast" :title="successMessage">
         <div class="toast-icon">✓</div>
         <div class="toast-content">
-          <div class="toast-title">充值成功!</div>
+          <div class="toast-title">{{ successTitle }}</div>
           <div class="toast-message">{{ successMessage }}</div>
           <div class="toast-time">{{ formatDateTime(new Date().toISOString()) }}</div>
         </div>
