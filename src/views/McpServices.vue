@@ -537,49 +537,52 @@ watch(
           <p>暂无MCP服务数据</p>
         </div>
         
-        <div v-if="!loading && mcpServices.length > 0" class="batch-actions">
-          <button 
-            class="batch-btn" 
-            @click="generateChainNodes"
-            :disabled="hasTaskChainId"
-            :title="hasTaskChainId ? '选中的服务中已有任务链ID，无法重复生成' : ''"
-          >
-            批量生成链与节点 ({{ selectedIds.length }})
-          </button>
-          <button 
-            class="batch-btn delete-btn" 
-            @click="batchDelete"
-            :disabled="selectedIds.length === 0"
-          >
-            批量删除 ({{ selectedIds.length }})
-          </button>
-          <button 
-            class="batch-btn update-group-btn" 
-            @click="openUpdateGroupModal"
-            :disabled="selectedIds.length === 0"
-          >
-            批量更新启动组 ({{ selectedIds.length }})
-          </button>
-          <button 
-            class="batch-btn close-btn" 
-            @click="batchClose"
-            :disabled="selectedIds.length === 0"
-          >
-            批量关闭 ({{ selectedIds.length }})
-          </button>
-        </div>
-        
-        <div class="pagination">
-          <button class="pagination-btn" @click="prevPage" :disabled="loading || currentPage === 1">上一页</button>
-          <span class="pagination-info">
-            {{ loading ? '加载中...' : `第 ${currentPage} 页 / 共 ${Math.ceil(totalServices / pageSize)} 页，共 ${totalServices} 条` }}
-          </span>
-          <button class="pagination-btn" @click="nextPage" :disabled="loading || currentPage === Math.ceil(totalServices / pageSize)">下一页</button>
-          <select v-model="pageSize" class="page-size-select" @change="fetchMcpServices" :disabled="loading">
-            <option value="10">10条/页</option>
-            <option value="20">20条/页</option>
-            <option value="50">50条/页</option>
-          </select>
+        <div v-if="!loading && mcpServices.length > 0" class="table-footer">
+          <div class="batch-actions">
+            <button
+              class="batch-btn"
+              @click="generateChainNodes"
+              :disabled="hasTaskChainId"
+              :title="hasTaskChainId ? '选中的服务中已有任务链ID，无法重复生成' : ''"
+            >
+              批量生成链与节点 ({{ selectedIds.length }})
+            </button>
+            <button
+              class="batch-btn delete-btn"
+              @click="batchDelete"
+              :disabled="selectedIds.length === 0"
+            >
+              批量删除 ({{ selectedIds.length }})
+            </button>
+            <button
+              class="batch-btn update-group-btn"
+              @click="openUpdateGroupModal"
+              :disabled="selectedIds.length === 0"
+            >
+              批量更新启动组 ({{ selectedIds.length }})
+            </button>
+            <button
+              class="batch-btn close-btn"
+              @click="batchClose"
+              :disabled="selectedIds.length === 0"
+            >
+              批量关闭 ({{ selectedIds.length }})
+            </button>
+          </div>
+
+          <div class="pagination">
+            <button class="pagination-btn" @click="prevPage" :disabled="loading || currentPage === 1">上一页</button>
+            <span class="pagination-info">
+              {{ loading ? '加载中...' : `第 ${currentPage} 页 / 共 ${Math.ceil(totalServices / pageSize)} 页，共 ${totalServices} 条` }}
+            </span>
+            <button class="pagination-btn" @click="nextPage" :disabled="loading || currentPage === Math.ceil(totalServices / pageSize)">下一页</button>
+            <select v-model="pageSize" class="page-size-select" @change="fetchMcpServices" :disabled="loading">
+              <option value="10">10条/页</option>
+              <option value="20">20条/页</option>
+              <option value="50">50条/页</option>
+              <option value="100">100条/页</option>
+            </select>
+          </div>
         </div>
 
         <div v-if="showUpdateGroupModal" class="modal-overlay" @click="showUpdateGroupModal = false">
@@ -611,23 +614,24 @@ watch(
 .mcp-services-container {
   padding: 10px;
   background-color: #f5f7fa;
-  min-height: 100vh;
-  overflow-y: auto !important;
-  overflow-x: auto !important;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   width: 100%;
 }
 .filter-section {
-  margin-bottom: 20px;
+  margin-bottom: 12px;
   background-color: #fff;
   border: 1px solid #ebeef5;
   border-radius: 8px;
-  padding: 15px 20px;
+  padding: 12px 16px;
   box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
 }
 .filter-container {
   display: flex;
   flex-wrap: wrap;
-  gap: 20px;
+  gap: 12px;
   align-items: center;
 }
 .filter-item {
@@ -650,7 +654,7 @@ watch(
   color: #303133;
   cursor: pointer;
   transition: all 0.3s ease;
-  min-width: 120px;
+  min-width: 96px;
 }
 .filter-select:hover { border-color: #c6e2ff; }
 .filter-select:focus {
@@ -665,7 +669,7 @@ watch(
   background-color: #fff;
   border: 1px solid #dcdfe6;
   border-radius: 6px 0 0 6px;
-  padding: 0 8px;
+  padding: 0 6px;
   transition: all 0.3s ease;
   height: 36px;
 }
@@ -679,8 +683,8 @@ watch(
   outline: none;
   font-size: 13px;
   color: #303133;
-  width: 200px;
-  flex: 1;
+  width: clamp(120px, 14vw, 160px);
+  flex: 0 0 auto;
   height: 36px;
   background: transparent;
 }
@@ -736,23 +740,34 @@ watch(
   background-color: #fff;
   border-radius: 4px;
   box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  flex: 1;
+  min-height: 0;
+}
+.table-card {
+  padding: 16px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.table-wrapper {
   overflow: auto !important;
-  margin-bottom: 20px;
+  margin-bottom: 12px;
+  flex: 1;
+  min-height: 0;
 }
-.table-card { padding: 20px; overflow: visible !important; }
-.table-wrapper { overflow-x: auto !important; margin-bottom: 20px; }
 .loading-state { text-align: center; padding: 40px; color: #909399; }
-.data-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-top: 15px;
-}
+.data-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
 .data-table th, .data-table td {
-  padding: 12px;
+  padding: 10px 12px;
   text-align: left;
   border-bottom: 1px solid #ebeef5;
   white-space: nowrap;
 }
+.data-table td { font-size: 13px; }
+.data-table th { font-size: 13px; }
 .data-table th {
   background-color: #f5f7fa;
   font-weight: bold;
@@ -798,8 +813,15 @@ input:focus + .slider { box-shadow: 0 0 1px #67c23a; }
 input:checked + .slider:before { transform: translateX(20px); }
 .slider.round { border-radius: 20px; }
 .slider.round:before { border-radius: 50%; }
-.batch-actions { display: flex; justify-content: flex-start; align-items: center; margin-top: 15px; margin-bottom: 10px; gap: 10px; }
-.batch-btn { padding: 8px 16px; background-color: #409eff; color: white; border: none; border-radius: 4px; cursor: pointer; transition: background-color 0.3s ease; margin-right: 10px; }
+.table-footer {
+  background-color: #fff;
+  padding-top: 8px;
+  border-top: 1px solid #ebeef5;
+  flex-shrink: 0;
+}
+
+.batch-actions { display: flex; justify-content: flex-start; align-items: center; margin: 0; gap: 8px; flex-wrap: wrap; }
+.batch-btn { padding: 6px 12px; background-color: #409eff; color: white; border: none; border-radius: 4px; cursor: pointer; transition: background-color 0.3s ease; margin-right: 6px; font-size: 12px; }
 .batch-btn:hover { background-color: #66b1ff; }
 .batch-btn:disabled { background-color: #c0c4cc; cursor: not-allowed; }
 .batch-btn.delete-btn { background-color: #f56c6c; }
@@ -826,7 +848,7 @@ input:checked + .slider:before { transform: translateX(20px); }
 .generate-btn { background-color: #67c23a; color: white; }
 .generate-btn:hover:not(:disabled) { background-color: #85ce61; }
 .generate-btn:disabled { background-color: #c0c4cc; cursor: not-allowed; color: #fff; }
-.pagination { display: flex; justify-content: center; align-items: center; margin-top: 20px; margin-bottom: 20px; gap: 10px; background-color: #f8f9fa; padding: 15px; border-radius: 4px; border: 1px solid #e9ecef; }
+.pagination { display: flex; justify-content: center; align-items: center; margin-top: 8px; margin-bottom: 10px; gap: 10px; background-color: #f8f9fa; padding: 10px; border-radius: 4px; border: 1px solid #e9ecef; }
 .pagination-btn { padding: 6px 12px; border: 1px solid #dcdfe6; background-color: #fff; border-radius: 4px; cursor: pointer; transition: all 0.3s ease; }
 .pagination-btn:hover:not(:disabled) { border-color: #409eff; color: #409eff; }
 .pagination-btn:disabled { color: #c0c4cc; cursor: not-allowed; }

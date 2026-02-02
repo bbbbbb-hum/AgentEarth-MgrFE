@@ -218,7 +218,7 @@ const handleClose = () => {
           <div class="form-group checkbox-group">
             <label class="checkbox-label">
               <input
-                v-model.number="formData.AccountRequired"
+                v-model="formData.AccountRequired"
                 type="checkbox"
                 :true-value="1"
                 :false-value="0"

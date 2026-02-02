@@ -679,6 +679,11 @@ const handlePageChange = (newPage: number) => {
   fetchServiceList();
 };
 
+const handlePageSizeChange = () => {
+  currentPage.value = 1;
+  fetchServiceList();
+};
+
 </script>
 
 <template>
@@ -693,40 +698,40 @@ const handlePageChange = (newPage: number) => {
 
     <div class="content-wrapper">
       <div class="section-header">
-        <h2 class="section-title">外部MCP服务录入</h2>
-      </div>
-      <div class="service-actions">
-        <div class="selection-info">
-          已选择 <span class="selection-count">{{ selectedIds.length }}</span> 条
-        </div>
-        <input
-          v-model="searchKeyword"
-          type="text"
-          placeholder="按名称搜索"
-          @keyup.enter="handleSearch"
-        />
-        <button class="btn btn-primary btn-lg" @click="handleSearch">
-          搜索
-        </button>
-        <button class="btn btn-secondary btn-lg" @click="handleReset">
-          重置
-        </button>
-        <button v-if="Object.keys(filters).length > 0 || sortField" class="btn btn-warning btn-lg" @click="clearFilters">
-          清除筛选
-        </button>
-        <button class="btn btn-primary btn-lg" @click="openAddModal">
-          新增
-        </button>
-        <button
-          class="btn btn-danger btn-lg"
-          :disabled="!hasSelection"
-          @click="handleDelete"
-        >
-          删除
-        </button>
+        <h2 class="section-title">外部MCP服务录入列表</h2>
       </div>
 
       <div class="table-section">
+        <div class="service-actions">
+          <div class="selection-info">
+            已选择 <span class="selection-count">{{ selectedIds.length }}</span> 条
+          </div>
+          <input
+            v-model="searchKeyword"
+            type="text"
+            placeholder="按名称搜索"
+            @keyup.enter="handleSearch"
+          />
+          <button class="btn btn-primary btn-lg" @click="handleSearch">
+            搜索
+          </button>
+          <button class="btn btn-secondary btn-lg" @click="handleReset">
+            重置
+          </button>
+          <button v-if="Object.keys(filters).length > 0 || sortField" class="btn btn-warning btn-lg" @click="clearFilters">
+            清除筛选
+          </button>
+          <button class="btn btn-primary btn-lg" @click="openAddModal">
+            新增
+          </button>
+          <button
+            class="btn btn-danger btn-lg"
+            :disabled="!hasSelection"
+            @click="handleDelete"
+          >
+            删除
+          </button>
+        </div>
         <div class="table-wrapper" ref="tableContainer" @click="handleTableClick">
           <table class="data-table">
             <thead>
@@ -1010,7 +1015,7 @@ const handlePageChange = (newPage: number) => {
                 </td>
                 <td v-if="!isEditingCell(item.Id, 'AccountRequired')" @click="(e) => startCellEdit(item, 'AccountRequired', e)">
                   <div class="account-required-cell">
-                    <span v-if="item.AccountRequired !== 1">{{ item.AccountRequired === 1 ? '是' : '否' }}</span>
+                    <span>{{ item.AccountRequired === 1 ? '是' : '否' }}</span>
                     <button
                       v-if="item.AccountRequired === 1"
                       class="account-supplement-btn"
@@ -1084,6 +1089,12 @@ const handlePageChange = (newPage: number) => {
           </div>
           <div class="pagination-divider">|</div>
           <div class="pagination-controls">
+            <select v-model="pageSize" class="page-size-select" @change="handlePageSizeChange">
+              <option :value="10">10条/页</option>
+              <option :value="20">20条/页</option>
+              <option :value="50">50条/页</option>
+              <option :value="100">100条/页</option>
+            </select>
             <button
               class="btn btn-sm"
               :disabled="currentPage === 1"
@@ -1111,6 +1122,7 @@ const handlePageChange = (newPage: number) => {
     <AccountSupplement
       v-if="accountSupplementConfigId !== null"
       :config-id="accountSupplementConfigId"
+      :service-name="serviceList.find(s => s.Id === accountSupplementConfigId)?.Name || ''"
       @close="closeAccountSupplement"
     />
   </div>
@@ -1118,8 +1130,7 @@ const handlePageChange = (newPage: number) => {
 
 <style scoped>
 .service-list-container {
-  padding: 0 20px 20px;
-  margin: 0 auto;
+  padding: 20px;
 }
 
 .page-header {
@@ -1167,15 +1178,14 @@ const handlePageChange = (newPage: number) => {
 }
 
 .section-header {
-  margin-bottom: 0.5px;
-  padding-bottom: 10px;
+  padding-bottom: 15px;
   border-bottom: 2px solid #e0e6ed;
 }
 
 .service-actions {
   display: flex;
   gap: 10px;
-  margin-bottom: 0.5px;
+  margin-bottom: 20px;
   align-items: center;
 }
 
@@ -1195,6 +1205,9 @@ const handlePageChange = (newPage: number) => {
 .selection-info {
   font-size: 0.9rem;
   color: #7f8c8d;
+  height: 36px;
+  display: flex;
+  align-items: center;
 }
 
 .selection-count {
@@ -1205,11 +1218,13 @@ const handlePageChange = (newPage: number) => {
 
 .service-actions input {
   width: 120px;
-  padding: 8px 20px;
+  height: 36px;
+  padding: 0 15px;
   border: 1px solid #d0d7de;
   border-radius: 6px;
   font-size: 0.9rem;
   transition: all 0.3s ease;
+  box-sizing: border-box;
 }
 
 .service-actions input:focus {
@@ -1221,13 +1236,13 @@ const handlePageChange = (newPage: number) => {
 .table-section {
   background-color: #fff;
   border-radius: 8px;
-  padding: 20px;
+  padding: 16px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .table-wrapper {
   overflow-x: auto;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 
 .data-table {
@@ -1562,6 +1577,22 @@ const handlePageChange = (newPage: number) => {
 .pagination-controls {
   display: flex;
   gap: 10px;
+  align-items: center;
+}
+
+.page-size-select {
+  padding: 6px 12px;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  color: #606266;
+  background-color: #fff;
+  cursor: pointer;
+  outline: none;
+}
+
+.page-size-select:focus {
+  border-color: #409eff;
 }
 
 .btn {
@@ -1585,8 +1616,12 @@ const handlePageChange = (newPage: number) => {
 }
 
 .btn-lg {
-  padding: 8px 20px;
+  height: 36px;
+  padding: 0 20px;
   font-size: 0.9rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .btn-primary {

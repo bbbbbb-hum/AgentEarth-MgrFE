@@ -22,9 +22,9 @@
                 v-model="searchKeyword" 
                 type="text" 
                 placeholder="搜索服务名称..." 
-                @keyup.enter="fetchServices"
+                @keyup.enter="handleSearch"
               />
-              <button class="btn btn-sm btn-search" @click="fetchServices">搜索</button>
+              <button class="btn btn-sm btn-search" @click="handleSearch">搜索</button>
             </div>
             <button class="btn btn-sm btn-refresh" @click="fetchServices">刷新</button>
           </div>
@@ -67,6 +67,12 @@
           </div>
           <div class="pagination-divider">|</div>
           <div class="pagination-controls">
+            <select v-model="pageSize" class="page-size-select" @change="handlePageSizeChange">
+              <option :value="10">10条/页</option>
+              <option :value="20">20条/页</option>
+              <option :value="50">50条/页</option>
+              <option :value="100">100条/页</option>
+            </select>
             <button
               class="btn btn-sm"
               :disabled="currentPage === 1"
@@ -215,7 +221,7 @@ const fetchServices = async () => {
     });
     
     if (searchKeyword.value.trim()) {
-      params.append('filter_name', searchKeyword.value.trim());
+      params.append('search', searchKeyword.value.trim());
     }
     
     const requestUrl = `${apiBaseUrl}api/admin/data/service-config/list?${params.toString()}`;
@@ -261,6 +267,11 @@ const fetchServices = async () => {
   } finally {
     loading.value = false;
   }
+};
+
+const handleSearch = () => {
+  currentPage.value = 1;
+  fetchServices();
 };
 
 const toggleOnline = async (service: ServiceConfig) => {
@@ -423,6 +434,11 @@ const goToNextPage = () => {
     currentPage.value++;
     fetchServices();
   }
+};
+
+const handlePageSizeChange = () => {
+  currentPage.value = 1;
+  fetchServices();
 };
 
 onMounted(() => {
@@ -752,6 +768,22 @@ onMounted(() => {
 .pagination-controls {
   display: flex;
   gap: 8px;
+  align-items: center;
+}
+
+.page-size-select {
+  padding: 6px 12px;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  color: #606266;
+  background-color: #fff;
+  cursor: pointer;
+  outline: none;
+}
+
+.page-size-select:focus {
+  border-color: #409eff;
 }
 
 .modal-overlay {

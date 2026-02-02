@@ -8,12 +8,23 @@
       <div class="service-panel">
         <div class="panel-header">
           <span class="panel-title">已录入服务</span>
-          <button class="btn btn-sm btn-refresh" @click="fetchServices">刷新</button>
+          <div class="header-actions">
+            <div class="search-box">
+              <input 
+                v-model="searchKeyword" 
+                type="text" 
+                placeholder="搜索服务名称..." 
+                @keyup.enter="handleSearch"
+              />
+              <button class="btn btn-sm btn-search" @click="handleSearch">搜索</button>
+            </div>
+            <button class="btn btn-sm btn-refresh" @click="fetchServices">刷新</button>
+          </div>
         </div>
         
         <div class="service-list" v-if="!loading">
           <div 
-            v-for="service in filteredServices" 
+            v-for="service in serviceList" 
             :key="service.Id"
             class="service-item"
           >
@@ -35,7 +46,7 @@
               </button>
             </div>
           </div>
-          <div v-if="filteredServices.length === 0" class="empty-tip">暂无服务数据</div>
+          <div v-if="serviceList.length === 0" class="empty-tip">暂无服务数据</div>
         </div>
         <div v-else class="loading-tip">加载中...</div>
         
@@ -45,6 +56,12 @@
           </div>
           <div class="pagination-divider">|</div>
           <div class="pagination-controls">
+            <select v-model="pageSize" class="page-size-select" @change="handlePageSizeChange">
+              <option :value="10">10条/页</option>
+              <option :value="20">20条/页</option>
+              <option :value="50">50条/页</option>
+              <option :value="100">100条/页</option>
+            </select>
             <button
               class="btn btn-sm"
               :disabled="currentPage === 1"
@@ -118,17 +135,6 @@ const testedServices = ref<Set<number>>(new Set());
 const accounts = ref<Record<number, Account[]>>({});
 const accountUpdateTime = ref<Record<number, string>>({});
 const apiBaseUrl = import.meta.env.BASE_URL;
-
-const filteredServices = computed(() => {
-  if (!searchKeyword.value.trim()) {
-    return serviceList.value;
-  }
-  const keyword = searchKeyword.value.toLowerCase();
-  return serviceList.value.filter(s => 
-    s.Name.toLowerCase().includes(keyword) ||
-    s.Description?.toLowerCase().includes(keyword)
-  );
-});
 
 const testedCount = computed(() => {
   return testedServices.value.size;
@@ -213,6 +219,10 @@ const fetchServices = async () => {
       page: currentPage.value.toString(),
       size: pageSize.value.toString()
     });
+
+    if (searchKeyword.value.trim()) {
+      params.append('search', searchKeyword.value.trim());
+    }
     
     const response = await fetch(`${apiBaseUrl}api/admin/data/service-config/list?${params.toString()}`);
     if (!response.ok) throw new Error('Network response was not ok');
@@ -266,6 +276,11 @@ const fetchServices = async () => {
   }
 };
 
+const handleSearch = () => {
+  currentPage.value = 1;
+  fetchServices();
+};
+
 const goToPreviousPage = () => {
   if (currentPage.value > 1) {
     currentPage.value--;
@@ -278,6 +293,11 @@ const goToNextPage = () => {
     currentPage.value++;
     fetchServices();
   }
+};
+
+const handlePageSizeChange = () => {
+  currentPage.value = 1;
+  fetchServices();
 };
 
 const testService = async (service: ServiceConfig) => {
@@ -367,6 +387,40 @@ onMounted(() => {
   margin-bottom: 16px;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.search-box input {
+  padding: 6px 12px;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  width: 200px;
+}
+
+.search-box input:focus {
+  outline: none;
+  border-color: #409eff;
+}
+
+.btn-search {
+  background-color: #409eff;
+  color: #fff;
+}
+
+.btn-search:hover {
+  background-color: #66b1ff;
+}
+
 .panel-title {
   font-size: 1.1rem;
   font-weight: 600;
@@ -423,7 +477,23 @@ onMounted(() => {
 
 .pagination-controls {
   display: flex;
-  gap: 10px;
+  gap: 8px;
+  align-items: center;
+}
+
+.page-size-select {
+  padding: 6px 12px;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  color: #606266;
+  background-color: #fff;
+  cursor: pointer;
+  outline: none;
+}
+
+.page-size-select:focus {
+  border-color: #409eff;
 }
 
 .service-item {

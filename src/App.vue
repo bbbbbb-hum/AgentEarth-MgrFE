@@ -374,8 +374,7 @@ onMounted(() => {
       <!-- 主内容区域 -->
       <main class="main-content">
         <!-- 顶部导航栏 -->
-        <div class="top-navbar">
-        </div>
+        <div class="top-navbar"></div>
         
         <!-- 标签页栏 -->
         <div class="tabs-bar">
@@ -397,12 +396,13 @@ onMounted(() => {
           </div>
         </div>
         
-        <!-- 路由视图 - 使用keep-alive缓存组件状态 -->
-        <router-view v-slot="{ Component }">
-          <keep-alive>
-            <component :is="Component" />
-          </keep-alive>
-        </router-view>
+        <div class="route-container">
+          <router-view v-slot="{ Component }">
+            <keep-alive>
+              <component :is="Component" />
+            </keep-alive>
+          </router-view>
+        </div>
       </main>
     </template>
   </div>
@@ -719,9 +719,21 @@ body {
   display: flex;
   flex-direction: column;
   background-color: #f5f7fa;
-  overflow-x: auto; /* 允许横向滚动 */
-  overflow-y: auto; /* 允许垂直滚动 */
+  overflow: hidden;
   transition: width 0.3s ease; /* 与侧边栏折叠动画同步 */
+}
+
+.route-container {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.route-container > * {
+  flex: 1;
+  min-height: 0;
 }
 
 /* 顶部导航栏 */
@@ -736,6 +748,10 @@ body {
   z-index: 10;
   width: 100%;
   min-width: 100%;
+}
+
+.top-navbar:empty {
+  display: none;
 }
 
 .navbar-left h2 {

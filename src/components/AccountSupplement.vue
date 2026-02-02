@@ -22,6 +22,7 @@ interface ApiResponse {
 
 const props = defineProps<{
   configId: number;
+  serviceName: string;
 }>();
 
 const emit = defineEmits<{
@@ -275,8 +276,7 @@ const handleCreateAccount = async () => {
     }
 
     const configId = props.configId;
-    const account = accounts.value.find(acc => acc.ConfigId === configId);
-    const serviceName = account?.Name || '';
+    const serviceName = props.serviceName;
     
     const response = await fetch(`${apiBaseUrl}api/admin/mcp/service/config/account/create`, {
       method: 'POST',
@@ -400,7 +400,7 @@ const saveEdit = async (id: number, isAutoSave: boolean = false) => {
     
     const requestData: any = {
       id: id,
-      name: account?.Name || '',
+      name: props.serviceName,
       status: editingData.value.Status
     };
     
@@ -497,7 +497,7 @@ const disableOtherAccounts = async (currentAccountId: number) => {
         credentials: 'include',
         body: JSON.stringify({
           id: account.Id,
-          name: account.Name || '',
+          name: props.serviceName,
           status: 'inactive'
         })
       });
@@ -508,8 +508,7 @@ const disableOtherAccounts = async (currentAccountId: number) => {
 };
 
 const getServiceName = (configId: number): string => {
-  const account = accounts.value.find(acc => acc.ConfigId === configId);
-  return account?.Name || '';
+  return props.serviceName;
 };
 
 const handleTableClick = (event: MouseEvent) => {
@@ -686,7 +685,7 @@ watch(() => props.configId, (newConfigId) => {
           <div class="form-group">
             <label>服务名称</label>
             <input
-              :value="getServiceName(props.configId)"
+              :value="props.serviceName"
               type="text"
               disabled
               class="disabled-input"
