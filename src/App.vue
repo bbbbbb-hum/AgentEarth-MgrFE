@@ -165,13 +165,13 @@ const sidebarMenu = ref<SidebarMenuItem[]>([
     icon: '🔄'
   },
   {
-    id: 5,
+    id: 6,
     title: '星量MCP服务价格管理',
     path: '/service-price',
     icon: '💰'
   },
   {
-    id: 6,
+    id: 7,
     title: '星量用户资金管理',
     path: '/user-fund',
     icon: '💎'
