@@ -175,17 +175,16 @@ const displayBalance = ref(0);
 const targetBalance = ref(0);
 const isBalanceAnimating = ref(false);
 
-const totalRecordCount = computed(() => fundChangeRecords.value.length);
+// 服务端分页：total 来自接口返回，list 为当前页数据
+const totalRecordCount = ref(0);
 const totalRecordPages = computed(() => Math.max(1, Math.ceil(totalRecordCount.value / recordPageSize.value)));
 const recordPageStart = computed(() => {
   if (totalRecordCount.value === 0) return 0;
   return (recordPage.value - 1) * recordPageSize.value + 1;
 });
 const recordPageEnd = computed(() => Math.min(totalRecordCount.value, recordPage.value * recordPageSize.value));
-const pagedFundChangeRecords = computed(() => {
-  const start = (recordPage.value - 1) * recordPageSize.value;
-  return fundChangeRecords.value.slice(start, start + recordPageSize.value);
-});
+// 服务端分页时，fundChangeRecords 已是当前页数据，直接使用
+const pagedFundChangeRecords = computed(() => fundChangeRecords.value);
 
 const clampRecordPage = (page: number) => {
   return Math.min(Math.max(1, page), totalRecordPages.value);
@@ -208,11 +207,13 @@ const setSuccessToast = (title: string, message: string, durationMs = 3000) => {
 const goToRecordPage = (page: number) => {
   recordPage.value = clampRecordPage(page);
   recordPageInput.value = recordPage.value;
+  fetchFundChangeRecords();
 };
 
 const changeRecordPageSize = (size: number) => {
   recordPageSize.value = size;
   resetRecordPaging();
+  fetchFundChangeRecords();
 };
 
 const jumpToRecordPage = () => {
@@ -335,7 +336,7 @@ const fetchBalanceHistory = async () => {
   }
 };
 
-// 获取资金变动明细
+// 获取资金变动明细（服务端分页）
 const fetchFundChangeRecords = async () => {
   try {
     const params = new URLSearchParams();
@@ -343,13 +344,16 @@ const fetchFundChangeRecords = async () => {
     if (chargeTypeFilter.value > 0) {
       params.append('charge_type', chargeTypeFilter.value.toString());
     }
+    params.append('page', recordPage.value.toString());
+    params.append('page_size', recordPageSize.value.toString());
     const response = await fetch(`${apiBaseUrl}api/userfund/user/${userId.value}/fund-changes?${params.toString()}`, {
       headers: getAuthHeaders(),
       credentials: 'include',
     });
     if (!response.ok) throw new Error('Failed to fetch fund change records');
-    const data: { list: FundChangeRecord[] } = await response.json();
+    const data: { list: FundChangeRecord[]; total: number } = await response.json();
     fundChangeRecords.value = data.list || [];
+    totalRecordCount.value = data.total ?? 0;
     recordPage.value = clampRecordPage(recordPage.value);
     recordPageInput.value = recordPage.value;
   } catch (error) {

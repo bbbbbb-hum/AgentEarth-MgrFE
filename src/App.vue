@@ -143,8 +143,8 @@ interface SidebarMenuGroup {
 const sidebarMenu = ref<SidebarMenuGroup[]>([
   {
     id: 1,
-    title: '外部MCP服务治理',
-    subtitle: 'SERVICE GOVERNANCE',
+    title: '外部MCP服务',
+    subtitle: 'EXTERNAL MCP SERVICE',
     items: [
       {
         id: 2,
@@ -168,15 +168,22 @@ const sidebarMenu = ref<SidebarMenuGroup[]>([
   },
   {
     id: 2,
-    title: '星量MCP运营与结算中心',
-    subtitle: 'FINANCE & OPERATION',
+    title: '星量MCP服务',
+    subtitle: 'XINGLIANG MCP SERVICE',
     items: [
       {
         id: 6,
         title: '星量MCP服务价格管理',
         path: '/service-price',
         icon: '💰'
-      },
+      }
+    ]
+  },
+  {
+    id: 3,
+    title: '账户管理',
+    subtitle: 'ACCOUNT MANAGEMENT',
+    items: [
       {
         id: 7,
         title: '星量用户资金管理',
