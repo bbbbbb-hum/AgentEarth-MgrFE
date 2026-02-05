@@ -31,18 +31,17 @@
             <div class="service-info">
               <span class="service-id">ID: {{ service.Id }}</span>
               <span class="service-name">{{ service.Name }}</span>
-              <span class="type-badge" :class="service.Type">{{ getTypeLabel(service.Type) }}</span>
-              <span class="status-badge" :class="service.TestStatus === 1 ? 'tested' : 'untested'">
-                {{ service.TestStatus === 1 ? '已测试' : '未测试' }}
+              <span class="service-wemcp">{{ service.WemcpName }}</span>
+              <span class="status-badge" :class="getStatusClass(service.TestStatus)">
+                {{ getStatusText(service.TestStatus) }}
               </span>
             </div>
             <div class="service-actions">
               <button 
-                class="btn btn-sm"
-                :class="service.TestStatus === 1 ? 'btn-cancel-test' : 'btn-test'"
-                @click="testService(service)"
+                class="btn btn-sm btn-test"
+                @click="openTestPanel(service)"
               >
-                {{ service.TestStatus === 1 ? '取消测试' : '测试' }}
+                🧪 测试
               </button>
             </div>
           </div>
@@ -80,30 +79,39 @@
         </div>
       </div>
     </div>
+
+    <!-- 测试面板弹窗 -->
+    <Teleport to="body">
+      <div class="modal-overlay" v-if="showTestPanel" @click.self="closeTestPanel">
+        <div class="modal-container">
+          <McpTestPanel
+            :configId="selectedService!.Id"
+            :serviceName="selectedService!.Name"
+            @close="closeTestPanel"
+            @confirmed="handleTestConfirmed"
+          />
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
+import { apiBaseUrl, authorizedFetch } from '../http';
+import McpTestPanel from '../components/McpTestPanel.vue';
 
 interface ServiceConfig {
   Id: number;
   Name: string;
-  Type: string;
-  Description: string;
-  ProjectName: string;
-  MaxInstance: number;
   CreateTime: string;
   UpdateTime: string;
-  LaunchInfo: string;
-  ConnectInfo: string;
-  InstallInfo: string;
+  WemcpName: string;
+  Tags: string;
+  Description: string;
   AccountRequired: number;
   TestStatus: number;
   OnlineStatus: number;
-  ExternalServiceId: string;
-  ServerId: string;
-  CreateStatus: boolean;
 }
 
 interface Account {
@@ -134,42 +142,71 @@ const loading = ref(false);
 const testedServices = ref<Set<number>>(new Set());
 const accounts = ref<Record<number, Account[]>>({});
 const accountUpdateTime = ref<Record<number, string>>({});
-const apiBaseUrl = import.meta.env.BASE_URL;
 
 const testedCount = computed(() => {
   return testedServices.value.size;
 });
 
-const getTypeLabel = (type: string) => {
-  const typeMap: Record<string, string> = {
-    'stdio': '标准输入输出',
-    'sse': 'SSE连接',
-    'httpStreamable': 'HTTP流'
-  };
-  return typeMap[type] || type;
+// 测试面板状态
+const showTestPanel = ref(false);
+const selectedService = ref<ServiceConfig | null>(null);
+
+// 获取测试状态样式类
+const getStatusClass = (status: number): string => {
+  switch (status) {
+    case 1: return 'tested';
+    case -1: return 'failed';
+    default: return 'untested';
+  }
+};
+
+// 获取测试状态文本
+const getStatusText = (status: number): string => {
+  switch (status) {
+    case 1: return '已通过';
+    case -1: return '已失败';
+    default: return '未测试';
+  }
+};
+
+// 打开测试面板
+const openTestPanel = (service: ServiceConfig) => {
+  selectedService.value = service;
+  showTestPanel.value = true;
+};
+
+// 关闭测试面板
+const closeTestPanel = () => {
+  showTestPanel.value = false;
+  selectedService.value = null;
+};
+
+// 测试确认回调
+const handleTestConfirmed = (status: number) => {
+  if (selectedService.value) {
+    // 更新本地列表中的状态
+    const service = serviceList.value.find(s => s.Id === selectedService.value!.Id);
+    if (service) {
+      service.TestStatus = status;
+    }
+    // 更新已测试集合
+    if (status === 1) {
+      testedServices.value.add(selectedService.value.Id);
+    } else {
+      testedServices.value.delete(selectedService.value.Id);
+    }
+  }
 };
 
 const fetchAccounts = async (configId: number) => {
   try {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      console.error('No token found, cannot fetch accounts');
-      return;
-    }
-
     const params = new URLSearchParams({
       page: '1',
       size: '100',
       config_id: configId.toString()
     });
     
-    const response = await fetch(`${apiBaseUrl}api/admin/mcp/service/config/account/list?${params.toString()}`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      credentials: 'include'
-    });
+    const response = await authorizedFetch(`${apiBaseUrl}api/admin/mcp/service/config/account/list?${params.toString()}`, { method: 'GET' });
     
     if (!response.ok) {
       if (response.status === 401) {
@@ -224,7 +261,7 @@ const fetchServices = async () => {
       params.append('search', searchKeyword.value.trim());
     }
     
-    const response = await fetch(`${apiBaseUrl}api/admin/data/service-config/list?${params.toString()}`);
+    const response = await authorizedFetch(`${apiBaseUrl}api/admin/data/service-config/list?${params.toString()}`, { method: 'GET' });
     if (!response.ok) throw new Error('Network response was not ok');
     
     const data: ApiResponse = await response.json();
@@ -232,19 +269,12 @@ const fetchServices = async () => {
       serviceList.value = (data.data.list || []).map((item: any) => ({
         Id: item.id,
         Name: item.name,
-        Type: item.type,
         Description: item.description,
-        ProjectName: item.project_name,
-        MaxInstance: item.max_instance,
-        LaunchInfo: item.launch_info,
-        ConnectInfo: item.connect_info,
-        InstallInfo: item.install_info,
+        WemcpName: item.wemcp_name,
+        Tags: Array.isArray(item.tags) ? item.tags.join(',') : '',
         AccountRequired: item.account_required,
         TestStatus: item.test_status,
         OnlineStatus: item.online_status,
-        ExternalServiceId: item.external_service_id,
-        ServerId: item.server_id,
-        CreateStatus: item.create_status,
         CreateTime: item.create_time,
         UpdateTime: item.update_time
       }));
@@ -298,48 +328,6 @@ const goToNextPage = () => {
 const handlePageSizeChange = () => {
   currentPage.value = 1;
   fetchServices();
-};
-
-const testService = async (service: ServiceConfig) => {
-  try {
-    const newStatus = service.TestStatus === 1 ? 0 : 1;
-    
-    const response = await fetch(`${apiBaseUrl}api/admin/data/update/service-config`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        id: service.Id,
-        test_status: newStatus
-      })
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Failed to update test status:', errorText);
-      alert('更新测试状态失败: ' + errorText);
-      return;
-    }
-    
-    const data = await response.json();
-    if (data.code === 0) {
-      const serviceToUpdate = serviceList.value.find(s => s.Id === service.Id);
-      if (serviceToUpdate) {
-        serviceToUpdate.TestStatus = newStatus;
-      }
-      if (newStatus === 1) {
-        testedServices.value.add(service.Id);
-      } else {
-        testedServices.value.delete(service.Id);
-      }
-    } else {
-      alert('更新测试状态失败: ' + (data.message || '未知错误'));
-    }
-  } catch (err) {
-    console.error('Error updating test status:', err);
-    alert('更新测试状态时发生错误');
-  }
 };
 
 onMounted(() => {
@@ -584,6 +572,11 @@ onMounted(() => {
   color: #fff;
 }
 
+.status-badge.failed {
+  background-color: #ef4444;
+  color: #fff;
+}
+
 .btn-test {
   background: #3b82f6;
   color: #fff;
@@ -591,15 +584,6 @@ onMounted(() => {
 
 .btn-test:hover {
   background: #2563eb;
-}
-
-.btn-cancel-test {
-  background: #ef4444;
-  color: #fff;
-}
-
-.btn-cancel-test:hover {
-  background: #dc2626;
 }
 
 .empty-tip {
@@ -665,5 +649,31 @@ onMounted(() => {
 
 .btn-secondary:hover {
   background: #d1d5db;
+}
+
+/* 弹窗样式 */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.modal-container {
+  width: 100%;
+  max-width: 900px;
+  height: 80vh;
+  max-height: 700px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
 }
 </style>

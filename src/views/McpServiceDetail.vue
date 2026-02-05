@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue';
 import { useRoute } from 'vue-router';
+import { apiBaseUrl, authorizedFetch } from '../http';
 
 interface Chain {
   Id: number;
@@ -11,22 +12,6 @@ interface Chain {
   UpdateTime: string;
 }
 
-interface Config {
-  Id: number;
-  Name: string;
-  Type: string;
-  LaunchInfo: string;
-  CreateTime: string;
-  UpdateTime: string;
-  ConnectInfo: string;
-  ExternalServiceId: string;
-  MaxInstance: number;
-  CreateStatus: boolean;
-  Description: string;
-  ProjectName: string;
-  ServerId: string;
-}
-
 interface Node {
   Id: number;
   NodeName: string;
@@ -34,8 +19,9 @@ interface Node {
   Enabled: boolean;
   CreateTime: string;
   UpdateTime: string;
-  ExternalServiceId: string;
   Description: string;
+  ServerId: string;
+  NodeConfig?: string;
 }
 
 interface Service {
@@ -68,7 +54,6 @@ interface ApiResponse {
   message: string;
   data: {
     chain: Chain;
-    config: Config;
     node_list: Node[];
     service: Service;
   };
@@ -76,26 +61,26 @@ interface ApiResponse {
 
 const route = useRoute();
 const serviceId = ref(Number(route.params.id));
-const apiBaseUrl = import.meta.env.BASE_URL;
 
 const detailData = ref<ApiResponse['data'] | null>(null);
 const loading = ref(true);
 const error = ref('');
 
-const authorizedFetch = async (url: string, init?: RequestInit) => {
-  const token = localStorage.getItem('token');
-  const headers = new Headers(init?.headers);
-  if (token) {
-    headers.set('Authorization', `Bearer ${token}`);
+const nodeConfigVisible = ref(false);
+const nodeConfigLoading = ref(false);
+const nodeConfigSaving = ref(false);
+const nodeConfigError = ref('');
+const nodeConfigServerId = ref('');
+const nodeConfigValue = ref('');
+
+const formatNodeConfig = (raw?: string) => {
+  const trimmed = (raw || '').trim();
+  if (!trimmed || trimmed === 'null') return '{}';
+  try {
+    return JSON.stringify(JSON.parse(trimmed), null, 2);
+  } catch {
+    return trimmed;
   }
-  if ((init?.method && init.method !== 'GET') || init?.body) {
-    headers.set('Content-Type', 'application/json');
-  }
-  return fetch(url, {
-    ...init,
-    headers,
-    credentials: 'include',
-  });
 };
 
 const fetchServiceDetail = async () => {
@@ -132,6 +117,87 @@ const fetchServiceDetail = async () => {
     error.value = '获取服务详情失败，请检查网络连接或稍后重试';
   } finally {
     loading.value = false;
+  }
+};
+
+const openNodeConfig = async (serverId: string, cachedNodeConfig?: string) => {
+  nodeConfigServerId.value = serverId;
+  nodeConfigVisible.value = true;
+  nodeConfigLoading.value = true;
+  nodeConfigSaving.value = false;
+  nodeConfigError.value = '';
+  if (cachedNodeConfig && cachedNodeConfig.trim()) {
+    try {
+      nodeConfigValue.value = JSON.stringify(JSON.parse(cachedNodeConfig), null, 2);
+    } catch {
+      nodeConfigValue.value = cachedNodeConfig;
+    }
+  } else {
+    nodeConfigValue.value = '';
+  }
+
+  try {
+    const resp = await authorizedFetch(
+      `${apiBaseUrl}api/admin/data/task-node/node-config?server_id=${encodeURIComponent(serverId)}`
+    );
+    const result = await resp.json();
+    if (result.code !== 0) {
+      nodeConfigError.value = result.message || '获取 node_config 失败';
+      return;
+    }
+    const raw = result?.data?.node_config ?? '{}';
+    try {
+      nodeConfigValue.value = JSON.stringify(JSON.parse(raw), null, 2);
+    } catch {
+      nodeConfigValue.value = String(raw);
+    }
+  } catch (e: any) {
+    nodeConfigError.value = e?.message || '获取 node_config 失败';
+  } finally {
+    nodeConfigLoading.value = false;
+  }
+};
+
+const closeNodeConfig = () => {
+  nodeConfigVisible.value = false;
+  nodeConfigLoading.value = false;
+  nodeConfigSaving.value = false;
+  nodeConfigError.value = '';
+  nodeConfigServerId.value = '';
+  nodeConfigValue.value = '';
+};
+
+const saveNodeConfig = async () => {
+  nodeConfigError.value = '';
+  const serverId = nodeConfigServerId.value;
+  if (!serverId) return;
+
+  try {
+    JSON.parse(nodeConfigValue.value || '{}');
+  } catch (e: any) {
+    nodeConfigError.value = e?.message ? `JSON 解析失败: ${e.message}` : 'JSON 解析失败';
+    return;
+  }
+
+  nodeConfigSaving.value = true;
+  try {
+    const resp = await authorizedFetch(`${apiBaseUrl}api/admin/data/task-node/node-config`, {
+      method: 'POST',
+      body: JSON.stringify({
+        server_id: serverId,
+        node_config: nodeConfigValue.value || '{}',
+      }),
+    });
+    const result = await resp.json();
+    if (result.code !== 0) {
+      nodeConfigError.value = result.message || '保存 node_config 失败';
+      return;
+    }
+    closeNodeConfig();
+  } catch (e: any) {
+    nodeConfigError.value = e?.message || '保存 node_config 失败';
+  } finally {
+    nodeConfigSaving.value = false;
   }
 };
 
@@ -285,71 +351,6 @@ watch(
           </section>
           
           <section class="detail-panel">
-            <h3 class="panel-title">配置信息</h3>
-            <div v-if="detailData.config" class="config-info">
-              <div class="detail-grid">
-                <div class="detail-item">
-                  <label>配置ID:</label>
-                  <span>{{ detailData.config.Id }}</span>
-                </div>
-                <div class="detail-item">
-                  <label>配置名称:</label>
-                  <span>{{ detailData.config.Name }}</span>
-                </div>
-                <div class="detail-item">
-                  <label>服务类型:</label>
-                  <span>{{ detailData.config.Type }}</span>
-                </div>
-                <div class="detail-item">
-                  <label>外部服务ID:</label>
-                  <span>{{ detailData.config.ExternalServiceId }}</span>
-                </div>
-                <div class="detail-item">
-                  <label>最大实例数:</label>
-                  <span>{{ detailData.config.MaxInstance }}</span>
-                </div>
-                <div class="detail-item">
-                  <label>创建状态:</label>
-                  <span :class="`status-badge status-${detailData.config.CreateStatus ? 'running' : 'stopped'}`">
-                    {{ detailData.config.CreateStatus ? '已创建' : '未创建' }}
-                  </span>
-                </div>
-                <div class="detail-item">
-                  <label>创建时间:</label>
-                  <span>{{ new Date(detailData.config.CreateTime).toLocaleString() }}</span>
-                </div>
-                <div class="detail-item">
-                  <label>更新时间:</label>
-                  <span>{{ new Date(detailData.config.UpdateTime).toLocaleString() }}</span>
-                </div>
-                <div class="detail-item full-width">
-                  <label>项目名称:</label>
-                  <span>{{ detailData.config.ProjectName }}</span>
-                </div>
-                <div class="detail-item full-width">
-                  <label>配置描述:</label>
-                  <span>{{ detailData.config.Description || '' }}</span>
-                </div>
-                <div class="detail-item full-width">
-                  <label>启动信息:</label>
-                  <div class="code-block">
-                    {{ detailData.config.LaunchInfo || '' }}
-                  </div>
-                </div>
-                <div class="detail-item full-width">
-                  <label>链接信息:</label>
-                  <div class="code-block">
-                    {{ detailData.config.ConnectInfo || '' }}
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div v-else class="empty-section">
-              <p>暂无配置信息</p>
-            </div>
-          </section>
-          
-          <section class="detail-panel">
             <h3 class="panel-title">节点列表</h3>
             <div v-if="detailData.node_list" class="node-list">
               <div class="table-container">
@@ -360,9 +361,11 @@ watch(
                       <th>节点名称</th>
                       <th>节点句柄</th>
                       <th>状态</th>
-                      <th>外部服务ID</th>
+                      <th>服务ID</th>
+                      <th>节点配置</th>
                       <th>创建时间</th>
                       <th>更新时间</th>
+                      <th>操作</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -380,9 +383,15 @@ watch(
                           {{ node.Enabled ? '启用' : '禁用' }}
                         </span>
                       </td>
-                      <td>{{ node.ExternalServiceId }}</td>
+                      <td>{{ node.ServerId || '-' }}</td>
+                      <td><div class="node-config-cell">{{ formatNodeConfig(node.NodeConfig) }}</div></td>
                       <td>{{ new Date(node.CreateTime).toLocaleString() }}</td>
                       <td>{{ new Date(node.UpdateTime).toLocaleString() }}</td>
+                      <td>
+                        <button class="retry-btn" :disabled="!node.ServerId" @click="openNodeConfig(node.ServerId, node.NodeConfig)">
+                          编辑配置
+                        </button>
+                      </td>
                     </tr>
                   </tbody>
                 </table>
@@ -402,6 +411,31 @@ watch(
         </div>
       </div>
     </section>
+    <div v-if="nodeConfigVisible" class="modal-overlay" @click="closeNodeConfig">
+      <div class="modal" @click.stop>
+        <div class="modal-header">
+          <h4>节点配置 (server_id: {{ nodeConfigServerId }})</h4>
+          <button class="modal-close" @click="closeNodeConfig">×</button>
+        </div>
+        <div class="modal-body">
+          <div v-if="nodeConfigLoading" class="loading-state">
+            <p>加载中...</p>
+          </div>
+          <div v-else>
+            <textarea v-model="nodeConfigValue" class="modal-textarea" rows="14"></textarea>
+            <div v-if="nodeConfigError" class="error-state">
+              <p>{{ nodeConfigError }}</p>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="retry-btn" @click="closeNodeConfig">取消</button>
+          <button class="retry-btn" :disabled="nodeConfigSaving || nodeConfigLoading" @click="saveNodeConfig">
+            {{ nodeConfigSaving ? '保存中...' : '保存' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -528,6 +562,18 @@ watch(
   white-space: nowrap;
 }
 .node-table td { color: #303133; }
+.node-config-cell {
+  max-height: 120px;
+  overflow: auto;
+  white-space: pre;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12px;
+  line-height: 1.4;
+  background-color: #f5f7fa;
+  border: 1px solid #ebeef5;
+  border-radius: 4px;
+  padding: 6px 8px;
+}
 .node-table tbody tr:hover { background-color: #f5f7fa; }
 .node-name-container { display: flex; flex-direction: column; gap: 4px; }
 .node-name { font-weight: 500; color: #303133; }
@@ -566,5 +612,59 @@ watch(
 }
 .status-badge.status-running { background-color: #f0f9eb; color: #67c23a; }
 .status-badge.status-stopped { background-color: #fef0f0; color: #f56c6c; }
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.modal {
+  width: min(900px, 92vw);
+  background: #fff;
+  border-radius: 6px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+}
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid #ebeef5;
+}
+.modal-header h4 {
+  margin: 0;
+  font-size: 14px;
+  color: #303133;
+}
+.modal-close {
+  border: none;
+  background: transparent;
+  font-size: 20px;
+  cursor: pointer;
+  color: #909399;
+}
+.modal-body { padding: 12px 16px; }
+.modal-textarea {
+  width: 100%;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  padding: 10px;
+  resize: vertical;
+  box-sizing: border-box;
+}
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 12px 16px;
+  border-top: 1px solid #ebeef5;
+}
 </style>
 

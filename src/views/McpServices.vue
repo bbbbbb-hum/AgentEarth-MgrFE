@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
+import { apiBaseUrl, authorizedFetch } from '../http';
 
 const router = useRouter();
-const apiBaseUrl = import.meta.env.BASE_URL;
 
 const goToDetail = (id: number) => {
   router.push(`/mcp-services/${id}`);
@@ -48,6 +48,16 @@ const isInstallFilter = ref(0);
 const searchKeyword = ref('');
 const serverId = ref('');
 
+const showAddServiceModal = ref(false);
+const addServiceSubmitting = ref(false);
+const addServiceForm = ref({
+  serverName: '',
+  description: '',
+  projectName: '',
+  tags: '',
+  logo: '',
+});
+
 const allSelected = computed({
   get: () => mcpServices.value.length > 0 && selectedIds.value.length === mcpServices.value.length,
   set: (value: boolean) => {
@@ -64,20 +74,98 @@ const hasTaskChainId = computed(() => {
   return mcpServices.value.some(service => selectedIds.value.includes(service.Id) && service.TaskChainId);
 });
 
-const authorizedFetch = async (url: string, init?: RequestInit) => {
-  const token = localStorage.getItem('token');
-  const headers = new Headers(init?.headers);
-  if (token) {
-    headers.set('Authorization', `Bearer ${token}`);
+const openAddServiceModal = () => {
+  showAddServiceModal.value = true;
+  addServiceSubmitting.value = false;
+  addServiceForm.value = {
+    serverName: '',
+    description: '',
+    projectName: '',
+    tags: '',
+    logo: '',
+  };
+};
+
+const closeAddServiceModal = () => {
+  showAddServiceModal.value = false;
+  addServiceSubmitting.value = false;
+};
+
+const confirmAddService = async () => {
+  const parseTags = (text: string) => {
+    return text
+      .split(',')
+      .map(t => t.trim())
+      .filter(Boolean);
+  };
+
+  const form = addServiceForm.value;
+  if (!form.serverName.trim()) {
+    alert('服务名称不能为空');
+    return;
   }
-  if ((init?.method && init.method !== 'GET') || init?.body) {
-    headers.set('Content-Type', 'application/json');
+
+  addServiceSubmitting.value = true;
+  try {
+    const payload: any = {
+      server_name: form.serverName,
+      description: form.description,
+      project_name: form.projectName,
+      enabled: false,
+      tags: parseTags(form.tags),
+      logo: form.logo,
+    };
+
+    const resp = await authorizedFetch(`${apiBaseUrl}api/admin/mcp/service/create`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    if (!resp.ok) {
+      const text = await resp.text();
+      alert(`创建星量服务失败: ${text}`);
+      return;
+    }
+    const result = await resp.json();
+    if (result.code !== 0) {
+      alert(`创建星量服务失败: ${result.message || '未知错误'}`);
+      return;
+    }
+    alert('创建星量服务成功');
+    closeAddServiceModal();
+    await fetchMcpServices();
+  } catch (e) {
+    console.error('创建星量服务异常:', e);
+    alert('创建星量服务失败，请检查网络连接或稍后重试');
+  } finally {
+    addServiceSubmitting.value = false;
   }
-  return fetch(url, {
-    ...init,
-    headers,
-    credentials: 'include',
-  });
+};
+
+const toggleEnabled = async (service: McpService) => {
+  try {
+    const nextEnabled = !service.Enabled;
+    const resp = await authorizedFetch(`${apiBaseUrl}api/admin/mcp/service/update/enabled`, {
+      method: 'POST',
+      body: JSON.stringify({
+        id: service.Id,
+        enabled: nextEnabled,
+      }),
+    });
+    if (!resp.ok) {
+      const text = await resp.text();
+      alert(`更新服务启用状态失败: ${text}`);
+      return;
+    }
+    const result = await resp.json();
+    if (result.code !== 0) {
+      alert(`更新服务启用状态失败: ${result.message || '未知错误'}`);
+      return;
+    }
+    service.Enabled = nextEnabled;
+  } catch (e) {
+    console.error('更新服务启用状态异常:', e);
+    alert('更新服务启用状态失败，请检查网络连接或稍后重试');
+  }
 };
 
 const fetchMcpServices = async () => {
@@ -89,8 +177,15 @@ const fetchMcpServices = async () => {
     if (searchKeyword.value.trim()) {
       params.append('search', searchKeyword.value.trim());
     }
-    if (serverId.value.trim()) {
-      params.append('server_id', serverId.value.trim());
+    const serverIdText = serverId.value.trim();
+    if (serverIdText) {
+      if (/^\d+$/.test(serverIdText)) {
+        if (!params.has('search')) {
+          params.append('search', serverIdText);
+        }
+      } else {
+        params.append('server_id', serverIdText);
+      }
     }
     if (enabledFilter.value !== 0) {
       params.append('enabled', enabledFilter.value.toString());
@@ -341,9 +436,9 @@ onMounted(() => {
   const savedFilter = sessionStorage.getItem('mcpServicesFilter');
   if (savedFilter) {
     const filter = JSON.parse(savedFilter);
-    enabledFilter.value = filter.enabledFilter;
-    isCreatedFilter.value = filter.isCreatedFilter;
-    isInstallFilter.value = filter.isInstallFilter;
+    enabledFilter.value = Number(filter.enabledFilter || 0);
+    isCreatedFilter.value = Number(filter.isCreatedFilter || 0);
+    isInstallFilter.value = Number(filter.isInstallFilter || 0);
     searchKeyword.value = filter.searchKeyword;
     serverId.value = filter.serverId || '';
     currentPage.value = filter.currentPage;
@@ -376,26 +471,26 @@ watch(
       <div class="filter-container">
         <div class="filter-item">
           <label>状态:</label>
-          <select v-model="enabledFilter" class="filter-select" @change="fetchMcpServices">
-            <option value="0">全部</option>
-            <option value="1">是</option>
-            <option value="-1">否</option>
+          <select v-model.number="enabledFilter" class="filter-select" @change="fetchMcpServices">
+            <option :value="0">全部</option>
+            <option :value="1">是</option>
+            <option :value="-1">否</option>
           </select>
         </div>
         <div class="filter-item">
           <label>是否创建:</label>
-          <select v-model="isCreatedFilter" class="filter-select" @change="fetchMcpServices">
-            <option value="0">全部</option>
-            <option value="1">是</option>
-            <option value="-1">否</option>
+          <select v-model.number="isCreatedFilter" class="filter-select" @change="fetchMcpServices">
+            <option :value="0">全部</option>
+            <option :value="1">是</option>
+            <option :value="-1">否</option>
           </select>
         </div>
         <div class="filter-item">
           <label>是否安装:</label>
-          <select v-model="isInstallFilter" class="filter-select" @change="fetchMcpServices">
-            <option value="0">全部</option>
-            <option value="1">是</option>
-            <option value="-1">否</option>
+          <select v-model.number="isInstallFilter" class="filter-select" @change="fetchMcpServices">
+            <option :value="0">全部</option>
+            <option :value="1">是</option>
+            <option :value="-1">否</option>
           </select>
         </div>
         <div class="filter-item search-item">
@@ -405,7 +500,7 @@ watch(
               v-model="searchKeyword" 
               placeholder="搜索服务..." 
               class="search-input"
-              @keyup.enter="fetchMcpServices"
+              @keyup.enter="() => { currentPage = 1; fetchMcpServices(); }"
             >
             <button 
               v-if="searchKeyword" 
@@ -416,16 +511,16 @@ watch(
               ×
             </button>
           </div>
-          <button class="search-btn" @click="fetchMcpServices">搜索</button>
+          <button class="search-btn" @click="() => { currentPage = 1; fetchMcpServices(); }">搜索</button>
         </div>
         <div class="filter-item search-item">
           <div class="search-box">
             <input 
               type="text" 
               v-model="serverId" 
-              placeholder="搜索Server ID" 
+              placeholder="搜索 ID 或 Server ID" 
               class="search-input"
-              @keyup.enter="fetchMcpServices"
+              @keyup.enter="() => { currentPage = 1; fetchMcpServices(); }"
             >
             <button 
               v-if="serverId" 
@@ -436,10 +531,13 @@ watch(
               ×
             </button>
           </div>
-          <button class="search-btn" @click="fetchMcpServices">搜索</button>
+          <button class="search-btn" @click="() => { currentPage = 1; fetchMcpServices(); }">搜索</button>
         </div>
         <div class="filter-item">
           <button class="reset-btn" @click="resetFilters">重置</button>
+        </div>
+        <div class="filter-item">
+          <button class="add-btn" @click="openAddServiceModal">新增服务</button>
         </div>
       </div>
     </section>
@@ -520,6 +618,12 @@ watch(
                 <td>{{ service.XlcreditPrice }}</td>
                 <td>{{ new Date(service.CreateTime).toLocaleString() }}</td>
                 <td>
+                  <button
+                    class="action-btn toggle-enabled-btn"
+                    @click.stop="toggleEnabled(service)"
+                  >
+                    {{ service.Enabled ? '禁用' : '启用' }}
+                  </button>
                   <button 
                     class="action-btn generate-btn"
                     @click.stop="generateChainNode(service.Id)"
@@ -602,6 +706,40 @@ watch(
             <div class="modal-footer">
               <button class="modal-btn cancel-btn" @click="showUpdateGroupModal = false">取消</button>
               <button class="modal-btn confirm-btn" @click="updateBatchCreatedGroup">确定</button>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="showAddServiceModal" class="modal-overlay" @click="closeAddServiceModal">
+          <div class="modal-content" @click.stop>
+            <h3 class="modal-title">新增服务</h3>
+            <div class="modal-body">
+              <div class="modal-row">
+                <label class="modal-label">服务名称:</label>
+                <input class="modal-input" v-model="addServiceForm.serverName" placeholder="请输入服务名称">
+              </div>
+              <div class="modal-row">
+                <label class="modal-label">Logo:</label>
+                <input class="modal-input" v-model="addServiceForm.logo" placeholder="可选，不填则默认">
+              </div>
+              <div class="modal-row">
+                <label class="modal-label">项目名称:</label>
+                <input class="modal-input" v-model="addServiceForm.projectName" placeholder="可选，默认自动生成">
+              </div>
+              <div class="modal-row">
+                <label class="modal-label">标签:</label>
+                <input class="modal-input" v-model="addServiceForm.tags" placeholder="用逗号分隔">
+              </div>
+              <div class="modal-row">
+                <label class="modal-label">描述:</label>
+                <textarea class="modal-input" v-model="addServiceForm.description" rows="3"></textarea>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button class="modal-btn cancel-btn" @click="closeAddServiceModal">取消</button>
+              <button class="modal-btn confirm-btn" @click="confirmAddService" :disabled="addServiceSubmitting">
+                {{ addServiceSubmitting ? '创建中...' : '确定创建' }}
+              </button>
             </div>
           </div>
         </div>
@@ -736,6 +874,39 @@ watch(
   height: 36px;
 }
 .reset-btn:hover { background-color: #a6a9ad; }
+
+.add-btn {
+  padding: 8px 16px;
+  background-color: #409eff;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.3s ease;
+  height: 36px;
+}
+.add-btn:hover { background-color: #66b1ff; }
+
+.modal-search {
+  margin-top: 10px;
+}
+.modal-actions {
+  margin-top: 10px;
+  display: flex;
+  justify-content: flex-end;
+}
+.modal-table {
+  margin-top: 10px;
+  max-height: 320px;
+  overflow: auto;
+}
+.modal-row {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
 .table-section {
   background-color: #fff;
   border-radius: 4px;
@@ -848,6 +1019,8 @@ input:checked + .slider:before { transform: translateX(20px); }
 .generate-btn { background-color: #67c23a; color: white; }
 .generate-btn:hover:not(:disabled) { background-color: #85ce61; }
 .generate-btn:disabled { background-color: #c0c4cc; cursor: not-allowed; color: #fff; }
+.toggle-enabled-btn { background-color: #409eff; color: #fff; }
+.toggle-enabled-btn:hover { background-color: #66b1ff; }
 .pagination { display: flex; justify-content: center; align-items: center; margin-top: 8px; margin-bottom: 10px; gap: 10px; background-color: #f8f9fa; padding: 10px; border-radius: 4px; border: 1px solid #e9ecef; }
 .pagination-btn { padding: 6px 12px; border: 1px solid #dcdfe6; background-color: #fff; border-radius: 4px; cursor: pointer; transition: all 0.3s ease; }
 .pagination-btn:hover:not(:disabled) { border-color: #409eff; color: #409eff; }

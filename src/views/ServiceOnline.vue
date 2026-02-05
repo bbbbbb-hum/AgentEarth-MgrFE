@@ -39,7 +39,7 @@
             <div class="service-info">
               <span class="service-id">ID: {{ service.Id }}</span>
               <span class="service-name">{{ service.Name }}</span>
-              <span class="type-badge" :class="service.Type">{{ getTypeLabel(service.Type) }}</span>
+              <span class="service-wemcp">{{ service.WemcpName }}</span>
               <span class="status-badge" :class="service.OnlineStatus === 1 ? 'online' : 'offline'">
                 {{ service.OnlineStatus === 1 ? '已上线' : '已下线' }}
               </span>
@@ -91,81 +91,24 @@
         </div>
       </div>
     </div>
-
-    <div v-if="showOnlineModal" class="modal-overlay" @click="closeOnlineModal">
-      <div class="modal-content" @click.stop>
-        <div class="modal-header">
-          <span class="modal-title">上线服务</span>
-        </div>
-        <div class="modal-body">
-          <div class="form-row">
-            <label>服务名称</label>
-            <input v-model="onlineForm.name" type="text" disabled class="input-disabled" />
-          </div>
-          <div class="form-row">
-            <label>服务类型</label>
-            <select v-model="onlineForm.type">
-              <option value="stdio">标准输入输出</option>
-              <option value="sse">SSE连接</option>
-              <option value="httpStreamable">HTTP流</option>
-            </select>
-          </div>
-          <div class="form-row">
-            <label>服务描述</label>
-            <textarea v-model="onlineForm.description" rows="3"></textarea>
-          </div>
-          <div class="form-row">
-            <label>服务标签</label>
-            <input v-model="onlineForm.tags" type="text" placeholder="用逗号分隔标签" />
-          </div>
-          <div class="form-row">
-            <label>Logo</label>
-            <input v-model="onlineForm.logo" type="text" />
-          </div>
-          <div class="form-row">
-            <label>项目名称</label>
-            <input v-model="onlineForm.projectName" type="text" />
-          </div>
-          <div class="form-row">
-            <label>启用状态</label>
-            <select v-model="onlineForm.enabled">
-              <option :value="true">启用</option>
-              <option :value="false">禁用</option>
-            </select>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button class="btn btn-sm btn-cancel" @click="closeOnlineModal">取消</button>
-          <button class="btn btn-sm btn-online" @click="confirmOnline" :disabled="onlineSubmitting">
-            确认上线
-          </button>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
+import { apiBaseUrl, authorizedFetch } from '../http';
 
 interface ServiceConfig {
   Id: number;
   Name: string;
-  Type: string;
   Description: string;
-  ProjectName: string;
-  MaxInstance: number;
   CreateTime: string;
   UpdateTime: string;
-  LaunchInfo: string;
-  ConnectInfo: string;
-  InstallInfo: string;
+  WemcpName: string;
+  Tags: string;
   AccountRequired: number;
   TestStatus: number;
   OnlineStatus: number;
-  ExternalServiceId: string;
-  ServerId: string;
-  CreateStatus: boolean;
 }
 
 interface ApiResponse {
@@ -185,29 +128,7 @@ const loading = ref(false);
 const error = ref('');
 const processingId = ref<number | null>(null);
 const success = ref('');
-const apiBaseUrl = import.meta.env.BASE_URL;
-const showOnlineModal = ref(false);
-const onlineSubmitting = ref(false);
-const currentService = ref<ServiceConfig | null>(null);
 const searchKeyword = ref('');
-const onlineForm = ref({
-  name: '',
-  type: 'stdio',
-  description: '',
-  tags: '',
-  logo: '/assets/logo.png',
-  projectName: '',
-  enabled: false
-});
-
-const getTypeLabel = (type: string) => {
-  const typeMap: Record<string, string> = {
-    'stdio': '标准输入输出',
-    'sse': 'SSE连接',
-    'httpStreamable': 'HTTP流'
-  };
-  return typeMap[type] || type;
-};
 
 const fetchServices = async () => {
   loading.value = true;
@@ -226,7 +147,7 @@ const fetchServices = async () => {
     
     const requestUrl = `${apiBaseUrl}api/admin/data/service-config/list?${params.toString()}`;
     console.log('[ServiceOnline] fetchServices request', requestUrl);
-    const response = await fetch(requestUrl);
+    const response = await authorizedFetch(requestUrl, { method: 'GET' });
     
     if (!response.ok) {
       const errorText = await response.text();
@@ -241,19 +162,12 @@ const fetchServices = async () => {
       serviceList.value = (data.data.list || []).map((item: any) => ({
         Id: item.id,
         Name: item.name,
-        Type: item.type,
         Description: item.description,
-        ProjectName: item.project_name,
-        MaxInstance: item.max_instance,
-        LaunchInfo: item.launch_info,
-        ConnectInfo: item.connect_info,
-        InstallInfo: item.install_info,
+        WemcpName: item.wemcp_name,
+        Tags: Array.isArray(item.tags) ? item.tags.join(',') : '',
         AccountRequired: item.account_required,
         TestStatus: item.test_status,
         OnlineStatus: item.online_status,
-        ExternalServiceId: item.external_service_id,
-        ServerId: item.server_id,
-        CreateStatus: item.create_status,
         CreateTime: item.create_time,
         UpdateTime: item.update_time
       }));
@@ -276,14 +190,10 @@ const handleSearch = () => {
 
 const toggleOnline = async (service: ServiceConfig) => {
   const newStatus = service.OnlineStatus === 1 ? 0 : 1;
-  if (newStatus === 1) {
-    openOnlineModal(service);
-    return;
-  }
   processingId.value = service.Id;
   error.value = '';
   success.value = '';
-  const actionText = '下线';
+  const actionText = newStatus === 1 ? '上线' : '下线';
   try {
     const requestUrl = `${apiBaseUrl}api/admin/data/update-service-online`;
     const payload = {
@@ -291,7 +201,7 @@ const toggleOnline = async (service: ServiceConfig) => {
       online_status: newStatus
     };
     console.log('[ServiceOnline] toggleOnline request', requestUrl, payload);
-    const response = await fetch(requestUrl, {
+    const response = await authorizedFetch(requestUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -325,100 +235,6 @@ const toggleOnline = async (service: ServiceConfig) => {
     console.error('Error toggling online status:', err);
   } finally {
     processingId.value = null;
-  }
-};
-
-const openOnlineModal = (service: ServiceConfig) => {
-  currentService.value = service;
-  onlineForm.value = {
-    name: service.Name,
-    type: service.Type || 'stdio',
-    description: service.Description || '',
-    tags: `remote,${service.Type || 'stdio'}`,
-    logo: '/assets/logo.png',
-    projectName: service.ProjectName || '',
-    enabled: false
-  };
-  showOnlineModal.value = true;
-};
-
-const closeOnlineModal = () => {
-  showOnlineModal.value = false;
-  currentService.value = null;
-  onlineSubmitting.value = false;
-};
-
-const confirmOnline = async () => {
-  if (!currentService.value) {
-    return;
-  }
-  onlineSubmitting.value = true;
-  error.value = '';
-  success.value = '';
-  try {
-    const payload = {
-      id: currentService.value.Id,
-      name: onlineForm.value.name,
-      type: onlineForm.value.type,
-      description: onlineForm.value.description,
-      project_name: onlineForm.value.projectName,
-      online_status: 1
-    };
-    const updateUrl = `${apiBaseUrl}api/admin/data/update/service-config`;
-    console.log('[ServiceOnline] update service-config request', updateUrl, payload);
-    const updateResp = await fetch(updateUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    });
-    if (!updateResp.ok) {
-      const errorText = await updateResp.text();
-      console.log('[ServiceOnline] update service-config response error', updateResp.status, errorText);
-      throw new Error('更新配置失败');
-    }
-    const updateData = await updateResp.json();
-    console.log('[ServiceOnline] update service-config response', updateData);
-    if (updateData.code !== 0) {
-      throw new Error(updateData.message || '更新配置失败');
-    }
-
-    const createUrl = `${apiBaseUrl}api/admin/data/create/service`;
-    const createPayload = { ids: [currentService.value.Id], enabled: onlineForm.value.enabled };
-    console.log('[ServiceOnline] create service request', createUrl, createPayload);
-    const createResp = await fetch(createUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(createPayload)
-    });
-    if (!createResp.ok) {
-      const errorText = await createResp.text();
-      console.log('[ServiceOnline] create service response error', createResp.status, errorText);
-      throw new Error('创建服务失败');
-    }
-    const createData = await createResp.json();
-    console.log('[ServiceOnline] create service response', createData);
-    if (createData.code !== 0) {
-      throw new Error(createData.message || '创建服务失败');
-    }
-
-    const serviceToUpdate = serviceList.value.find((s: ServiceConfig) => s.Id === currentService.value?.Id);
-    if (serviceToUpdate) {
-      serviceToUpdate.OnlineStatus = 1;
-    }
-    success.value = '服务上线成功';
-    setTimeout(() => {
-      success.value = '';
-    }, 1000);
-    closeOnlineModal();
-    fetchServices();
-  } catch (err) {
-    error.value = err instanceof Error ? err.message : '上线失败';
-  } finally {
-    onlineSubmitting.value = false;
   }
 };
 
