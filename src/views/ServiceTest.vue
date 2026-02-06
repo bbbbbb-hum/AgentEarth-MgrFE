@@ -663,16 +663,16 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  padding: 20px;
+  padding: 8px;
 }
 
 .modal-container {
-  width: 100%;
-  max-width: 1000px;
-  height: 85vh;
-  max-height: 850px;
-  background: #fff;
-  border-radius: 12px;
+  width: 98vw;
+  max-width: none;
+  height: 95vh;
+  max-height: none;
+  background: transparent;
+  border-radius: 16px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
   overflow: hidden;
 }

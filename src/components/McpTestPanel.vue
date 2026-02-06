@@ -346,10 +346,8 @@ const confirmTest = async (status: number) => {
   
   display: flex;
   flex-direction: column;
-  height: 95vh;
-  max-height: none;
-  width: 98vw;
-  max-width: none;
+  height: 100%;
+  width: 100%;
   background: #ffffff;
   border-radius: 16px;
   overflow: hidden;
