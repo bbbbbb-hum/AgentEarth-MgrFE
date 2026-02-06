@@ -56,25 +56,30 @@
             <input v-model="toolQuery" class="search-input" type="text" placeholder="搜索工具..." />
           </div>
           <div class="tools-list custom-scrollbar">
-            <div
-              v-for="tool in filteredTools"
-              :key="tool.name"
-              class="tool-item"
-              role="button"
-              tabindex="0"
-              :class="{ active: selectedTool?.name === tool.name }"
-              @click.prevent.stop="selectTool(tool)"
-              @keydown.enter.prevent.stop="selectTool(tool)"
-              @keydown.space.prevent.stop="selectTool(tool)"
-            >
-              <div class="tool-icon-wrapper">
-                <span class="tool-icon">🛠️</span>
-              </div>
-              <div class="tool-info">
-                <div class="tool-name">{{ tool.name }}</div>
-                <div class="tool-summary" v-if="tool.description">{{ tool.description }}</div>
-              </div>
+            <div v-if="filteredTools.length === 0" class="tools-empty">
+              {{ connectionStatus === 'connected' ? '暂无可用工具' : '请先连接服务' }}
             </div>
+            <template v-else>
+              <div
+                v-for="tool in filteredTools"
+                :key="tool.name"
+                class="tool-item"
+                role="button"
+                tabindex="0"
+                :class="{ active: selectedTool?.name === tool.name }"
+                @click.prevent.stop="selectTool(tool)"
+                @keydown.enter.prevent.stop="selectTool(tool)"
+                @keydown.space.prevent.stop="selectTool(tool)"
+              >
+                <div class="tool-icon-wrapper">
+                  <span class="tool-icon">🛠️</span>
+                </div>
+                <div class="tool-info">
+                  <div class="tool-name">{{ tool.name }}</div>
+                  <div class="tool-summary" v-if="tool.description">{{ tool.description }}</div>
+                </div>
+              </div>
+            </template>
           </div>
         </div>
       </div>
@@ -394,16 +399,6 @@ const schemaHint = computed(() => {
   return `Schema：${count} 个字段`;
 });
 
-watch(
-  () => [tools.value.length, connectResult.value?.success] as const,
-  () => {
-    if (!selectedTool.value && tools.value.length > 0) {
-      selectTool(tools.value[0]);
-    }
-  },
-  { immediate: true }
-);
-
 const clampDrawerHeight = (value: number) => {
   const minDrawer = 160;
   const minRunner = 260;
@@ -538,10 +533,6 @@ const connect = async () => {
     if (response.code === 0 && response.data.success) {
       connectResult.value = response.data;
       tools.value = response.data.tools || [];
-      // 自动选择第一个工具
-      if (tools.value.length > 0) {
-        selectTool(tools.value[0]);
-      }
       addEvent('info', '连接成功', { server_info: response.data.server_info, tools_count: tools.value.length });
       addHistory('initialize', { method: 'initialize', params: {} }, { server_info: response.data.server_info, wemcp_name: response.data.wemcp_name }, 'success', response.data.duration_ms);
       addHistory('tools/list', { method: 'tools/list', params: {} }, { tools: tools.value }, 'success');
@@ -906,7 +897,8 @@ const confirmTest = async (status: number) => {
   gap: 12px;
   padding: 12px;
   overflow: hidden;
-  /* Flexbox 子元素默认会拉伸到父容器高度，不需要 height: 100% */
+  /* 确保 sidebar 占满整个高度 */
+  align-self: stretch;
 }
 
 .card {
@@ -919,12 +911,23 @@ const confirmTest = async (status: number) => {
 }
 
 .tools-card {
-  flex: 1;
-  min-height: 0;
+  flex: 1 1 0;
+  min-height: 200px;
   display: flex;
   flex-direction: column;
   /* 工具卡片占据剩余空间并允许内部滚动 */
   overflow: hidden;
+}
+
+.tools-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  font-size: 0.9rem;
+  text-align: center;
+  padding: 20px;
 }
 
 .card-title-row {
@@ -1083,7 +1086,7 @@ const confirmTest = async (status: number) => {
   display: flex;
   flex-direction: column;
   padding: 12px;
-  gap: 0;
+  gap: 12px;
   overflow: hidden;
   background: #f8fafc;
 }
@@ -1091,7 +1094,7 @@ const confirmTest = async (status: number) => {
 .runner {
   /* Flexbox 子元素：占据剩余空间，确保至少有可见高度 */
   flex: 1 1 0;
-  min-height: 200px;
+  min-height: 300px;
   border-radius: 16px;
   border: 1px solid #e2e8f0;
   background: #fff;
