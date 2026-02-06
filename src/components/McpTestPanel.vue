@@ -655,24 +655,24 @@ const confirmTest = async (status: number) => {
   text-overflow: ellipsis;
 }
 
-/* 工作台布局 (上下结构) */
+/* 工作台布局 (上下结构) - 切换为 Grid 布局 */
 .tool-workbench {
   flex: 1;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: auto 1fr auto auto; /* 头部 | 参数配置(剩余全部) | 操作栏 | 终端 */
   overflow: hidden;
-  min-width: 0; /* 防止flex子元素溢出 */
-  height: 100%; /* 确保填满父容器 */
+  min-width: 0;
+  height: 100%;
 }
 
 /* 上部：配置区域 */
 .workbench-top {
-  flex: 1;
+  /* 移除 flex 相关属性，让 grid 控制高度 */
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
+  overflow-y: auto; /* 内部滚动 */
   background: #fff;
-  min-height: 0; /* 允许压缩 */
+  min-height: 0;
 }
 
 .tool-header {
@@ -747,21 +747,18 @@ const confirmTest = async (status: number) => {
   background: #fff;
   border-top: 1px solid #f1f5f9;
   border-bottom: 1px solid #e2e8f0;
-  z-index: 5;
-  flex-shrink: 0;
+  /* 移除 z-index，回归文档流 */
 }
 
 /* 下部：终端区域 */
 .workbench-bottom {
-  height: 250px; /* 固定高度，不再使用百分比 */
-  min-height: 150px;
-  max-height: 50%; /* 防止在大屏幕上过高，但在小屏幕上至少保证固定高度 */
+  height: 250px; /* 固定高度 */
   display: flex;
   flex-direction: column;
   background: #1e293b;
   color: #e2e8f0;
-  flex-shrink: 0; /* 确保不被挤压 */
   border-top: 1px solid #334155;
+  /* 移除 flex-shrink，由 grid 控制 */
 }
 
 /* 终端样式 */
