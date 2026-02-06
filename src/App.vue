@@ -1,10 +1,21 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue';
 import { RouterView, useRoute, useRouter } from 'vue-router';
+import { logout } from './http';
 
 const route = useRoute();
 const router = useRouter();
 const sidebarOpen = ref(true);
+
+// 用户信息
+const currentUsername = computed(() => localStorage.getItem('username') || '未登录');
+
+// 登出处理
+const handleLogout = () => {
+  if (confirm('确定要退出登录吗？')) {
+    logout();
+  }
+};
 
 // 判断菜单项是否激活
 const isActiveMenu = (path: string) => {
@@ -374,7 +385,20 @@ onMounted(() => {
       <!-- 主内容区域 -->
       <main class="main-content">
         <!-- 顶部导航栏 -->
-        <div class="top-navbar"></div>
+        <div class="top-navbar">
+          <div class="navbar-left">
+            <h2>{{ currentPageTitle }}</h2>
+          </div>
+          <div class="navbar-right">
+            <div class="user-profile">
+              <span class="user-avatar">👤</span>
+              <span class="user-name">{{ currentUsername }}</span>
+              <button class="logout-btn" @click="handleLogout" title="退出登录">
+                🚪 退出
+              </button>
+            </div>
+          </div>
+        </div>
         
         <!-- 标签页栏 -->
         <div class="tabs-bar">
@@ -750,9 +774,7 @@ body {
   min-width: 100%;
 }
 
-.top-navbar:empty {
-  display: none;
-}
+/* 顶部导航栏不再需要隐藏空状态 */
 
 .navbar-left h2 {
   font-size: 1.5rem;
@@ -807,6 +829,27 @@ body {
   font-size: 14px;
   color: #303133;
   font-weight: 500;
+}
+
+.logout-btn {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  color: #fff;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-left: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.logout-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(245, 87, 108, 0.4);
 }
 
 /* 标签页栏 */

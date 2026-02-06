@@ -53,6 +53,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
+import { apiBaseUrl, baseFetch } from '../http';
 
 const router = useRouter();
 const username = ref('');
@@ -60,7 +61,6 @@ const password = ref('');
 const loading = ref(false);
 const error = ref('');
 const success = ref('');
-const apiBaseUrl = import.meta.env.BASE_URL;
 
 const handleLogin = async () => {
   if (!username.value || !password.value) {
@@ -74,7 +74,7 @@ const handleLogin = async () => {
   success.value = '';
 
   try {
-    const response = await fetch(`${apiBaseUrl}api/admin/auth/login`, {
+    const response = await baseFetch(`${apiBaseUrl}api/admin/auth/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

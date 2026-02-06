@@ -56,16 +56,12 @@ import { ref, shallowRef, computed, onMounted, onUnmounted, nextTick, watch } fr
 import { useRoute, useRouter } from 'vue-router';
 import * as echarts from 'echarts';
 import * as XLSX from 'xlsx';
+import { apiBaseUrl, authorizedFetch } from '../http';
 
 const route = useRoute();
 const router = useRouter();
 // 使用计算属性动态获取路由参数，这样当路由参数变化时会自动更新
 const userId = computed(() => route.params.user_id as string);
-const apiBaseUrl = import.meta.env.BASE_URL;
-const getAuthHeaders = (): Record<string, string> => {
-  const token = localStorage.getItem('token');
-  return token ? { Authorization: `Bearer ${token}` } : {};
-};
 
 // 接口定义
 interface UserDetail {
@@ -196,10 +192,7 @@ const jumpToRecordPage = () => {
 // 获取用户详情
 const fetchUserDetail = async (skipAnimation: boolean = false) => {
   try {
-    const response = await fetch(`${apiBaseUrl}api/userfund/user/${userId.value}`, {
-      headers: getAuthHeaders(),
-      credentials: 'include',
-    });
+    const response = await authorizedFetch(`${apiBaseUrl}api/userfund/user/${userId.value}`);
     if (!response.ok) throw new Error('Failed to fetch user detail');
     const data: UserDetail = await response.json();
     userDetail.value = data;
@@ -259,10 +252,7 @@ const fetchConsumptionRecords = async () => {
     console.log(`Fetching consumption records for ${userId.value}, days: ${selectedDays.value}`);
     const url = `${apiBaseUrl}api/userfund/user/${userId.value}/consumption?days=${selectedDays.value}`;
     console.log('API URL:', url);
-    const response = await fetch(url, {
-      headers: getAuthHeaders(),
-      credentials: 'include',
-    });
+    const response = await authorizedFetch(url);
     console.log('Response status:', response.status, response.statusText);
     if (!response.ok) {
       const text = await response.text();
@@ -285,10 +275,7 @@ const fetchBalanceHistory = async () => {
     console.log(`Fetching balance history for ${userId.value}, days: ${selectedDays.value}`);
     const url = `${apiBaseUrl}api/userfund/user/${userId.value}/balance?days=${selectedDays.value}`;
     console.log('API URL:', url);
-    const response = await fetch(url, {
-      headers: getAuthHeaders(),
-      credentials: 'include',
-    });
+    const response = await authorizedFetch(url);
     console.log('Response status:', response.status, response.statusText);
     if (!response.ok) {
       const text = await response.text();
@@ -313,10 +300,7 @@ const fetchFundChangeRecords = async () => {
     if (chargeTypeFilter.value > 0) {
       params.append('charge_type', chargeTypeFilter.value.toString());
     }
-    const response = await fetch(`${apiBaseUrl}api/userfund/user/${userId.value}/fund-changes?${params.toString()}`, {
-      headers: getAuthHeaders(),
-      credentials: 'include',
-    });
+    const response = await authorizedFetch(`${apiBaseUrl}api/userfund/user/${userId.value}/fund-changes?${params.toString()}`);
     if (!response.ok) throw new Error('Failed to fetch fund change records');
     const data: { list: FundChangeRecord[] } = await response.json();
     fundChangeRecords.value = data.list || [];
@@ -874,10 +858,8 @@ const backToEdit = () => {
 // 确认充值
 const confirmRecharge = async () => {
   try {
-    const response = await fetch(`${apiBaseUrl}api/userfund/user/recharge`, {
+    const response = await authorizedFetch(`${apiBaseUrl}api/userfund/user/recharge`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-      credentials: 'include',
       body: JSON.stringify({
         user_id: userId.value,
         amount: rechargeAmount.value,
@@ -989,10 +971,8 @@ const backToEditDeduction = () => {
 // 确认扣减
 const confirmDeduction = async () => {
   try {
-    const response = await fetch(`${apiBaseUrl}api/userfund/user/deduction`, {
+    const response = await authorizedFetch(`${apiBaseUrl}api/userfund/user/deduction`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-      credentials: 'include',
       body: JSON.stringify({
         user_id: userId.value,
         amount: deductionAmount.value,

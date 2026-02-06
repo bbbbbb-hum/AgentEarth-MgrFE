@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory, type RouteLocationNormalized, type NavigationGuardNext } from 'vue-router';
+import { getToken, isTokenExpired, logout } from '../http';
 import ServiceEntry from '../views/ServiceEntry.vue';
 import ServiceTest from '../views/ServiceTest.vue';
 import ServiceOnline from '../views/ServiceOnline.vue';
@@ -75,7 +76,8 @@ const router = createRouter({
 });
 
 router.beforeEach((to: RouteLocationNormalized, from: RouteLocationNormalized, next: NavigationGuardNext) => {
-  const token = localStorage.getItem('token');
+  const token = getToken();
+  const tokenValid = token && !isTokenExpired(token);
   
   // 如果访问根路径，直接跳转到登录页
   if (to.path === '/') {
@@ -83,9 +85,21 @@ router.beforeEach((to: RouteLocationNormalized, from: RouteLocationNormalized, n
     return;
   }
   
-  if (to.meta.requiresAuth && !token) {
-    next('/login');
-  } else if (to.path === '/login' && token) {
+  // 需要鉴权的页面
+  if (to.meta.requiresAuth) {
+    if (!tokenValid) {
+      // token 不存在或已过期，清除本地存储并跳转登录页
+      if (token) {
+        // token 存在但已过期，执行登出清理
+        logout();
+        return; // logout 会跳转，不需要 next
+      }
+      next('/login');
+    } else {
+      next();
+    }
+  } else if (to.path === '/login' && tokenValid) {
+    // 已登录且 token 有效，访问登录页时跳转到首页
     next('/service-entry');
   } else {
     next();
