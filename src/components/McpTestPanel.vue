@@ -62,7 +62,6 @@
               type="button"
               class="tool-item"
               :class="{ active: selectedTool?.name === tool.name }"
-              :disabled="connectionStatus !== 'connected'"
               @click="selectTool(tool)"
             >
               <div class="tool-icon-wrapper">
@@ -78,58 +77,64 @@
       </div>
 
       <div class="work-area">
-        <div class="runner" v-if="selectedTool">
-          <div class="runner-header">
-            <div class="runner-title">
-              <div class="tool-title">{{ selectedTool.name }}</div>
-              <div class="tool-desc" v-if="selectedTool.description">{{ selectedTool.description }}</div>
-            </div>
-            <div class="runner-actions">
-              <button class="btn btn-light" type="button" @click="copyInput" :disabled="!selectedTool">复制输入</button>
-              <button class="btn btn-light" type="button" @click="clearInput" :disabled="!selectedTool">清空参数</button>
-              <button class="btn btn-primary" type="button" @click="executeTool" :disabled="calling || connectionStatus !== 'connected'">
-                {{ calling ? '运行中...' : '运行工具' }}
-              </button>
-            </div>
-          </div>
-
-          <div class="runner-body custom-scrollbar">
-            <div class="section-title">参数</div>
-            <SchemaForm :schema="selectedTool.inputSchema" v-model="toolArguments" />
-          </div>
-
-          <div class="runner-result">
-            <div class="result-header">
-              <div class="result-left">
-                <span class="section-title">结果</span>
-                <span v-if="callResult" class="pill" :class="callResult.success && !callResult.is_error ? 'success' : 'error'">
-                  {{ callResult.success && !callResult.is_error ? '成功' : '失败' }}
-                </span>
-                <span v-if="callResult?.duration_ms" class="pill time">{{ callResult.duration_ms }}ms</span>
+        <div class="runner" :class="{ 'result-collapsed': resultCollapsed }">
+          <template v-if="selectedTool">
+            <div class="runner-header">
+              <div class="runner-title">
+                <div class="tool-title">{{ selectedTool.name }}</div>
+                <div class="tool-desc" v-if="selectedTool.description">{{ selectedTool.description }}</div>
               </div>
-              <div class="result-right">
-                <button class="btn btn-light btn-sm" type="button" @click="resultView = 'structured'" :class="{ active: resultView === 'structured' }">结构化</button>
-                <button class="btn btn-light btn-sm" type="button" @click="resultView = 'raw'" :class="{ active: resultView === 'raw' }">原始JSON</button>
-                <button class="btn btn-light btn-sm" type="button" @click="copyResult" :disabled="!callResult">复制结果</button>
-                <button class="btn btn-light btn-sm" type="button" @click="clearResult" :disabled="!callResult">清空</button>
+              <div class="runner-actions">
+                <button class="btn btn-light" type="button" @click="copyInput">复制输入</button>
+                <button class="btn btn-light" type="button" @click="clearInput">清空参数</button>
+                <button class="btn btn-primary" type="button" @click="executeTool" :disabled="calling || connectionStatus !== 'connected'">
+                  {{ calling ? '运行中...' : '运行工具' }}
+                </button>
               </div>
             </div>
-            <div class="result-body custom-scrollbar">
-              <div v-if="!callResult && !calling" class="placeholder">运行工具后将在此处显示返回结果</div>
-              <div v-else-if="calling" class="placeholder">正在等待服务响应...</div>
-              <pre v-else class="code">
-{{ resultView === 'structured' ? formatStructured(callResult) : formatJson(callResult) }}
-              </pre>
+
+            <div class="runner-body custom-scrollbar">
+              <div class="section-title">参数</div>
+              <SchemaForm :schema="selectedTool.inputSchema" v-model="toolArguments" />
             </div>
+
+            <div class="runner-result">
+              <div class="result-header">
+                <div class="result-left">
+                  <span class="section-title">结果</span>
+                  <span v-if="callResult" class="pill" :class="callResult.success && !callResult.is_error ? 'success' : 'error'">
+                    {{ callResult.success && !callResult.is_error ? '成功' : '失败' }}
+                  </span>
+                  <span v-if="callResult?.duration_ms" class="pill time">{{ callResult.duration_ms }}ms</span>
+                </div>
+                <div class="result-right">
+                  <button class="btn btn-light btn-sm" type="button" @click="resultView = 'structured'" :class="{ active: resultView === 'structured' }">结构化</button>
+                  <button class="btn btn-light btn-sm" type="button" @click="resultView = 'raw'" :class="{ active: resultView === 'raw' }">原始JSON</button>
+                  <button class="btn btn-light btn-sm" type="button" @click="copyResult" :disabled="!callResult">复制结果</button>
+                  <button class="btn btn-light btn-sm" type="button" @click="clearResult" :disabled="!callResult">清空</button>
+                  <button class="btn btn-light btn-sm" type="button" @click="resultCollapsed = !resultCollapsed">
+                    {{ resultCollapsed ? '展开' : '收起' }}
+                  </button>
+                </div>
+              </div>
+              <div v-if="!resultCollapsed" class="result-body custom-scrollbar">
+                <div v-if="!callResult && !calling" class="placeholder">运行工具后将在此处显示返回结果</div>
+                <div v-else-if="calling" class="placeholder">正在等待服务响应...</div>
+                <pre v-else class="code">{{ resultView === 'structured' ? formatStructured(callResult) : formatJson(callResult) }}</pre>
+              </div>
+            </div>
+          </template>
+
+          <div v-else class="runner-empty">
+            <div class="empty-title">右侧将展示工具参数</div>
+            <div class="empty-sub">请先连接服务，然后从左侧工具列表选择一个工具</div>
           </div>
         </div>
 
-        <div class="runner-empty" v-else>
-          <div class="empty-title">从左侧选择一个工具</div>
-          <div class="empty-sub">连接后可查看工具列表、填写参数并运行</div>
-        </div>
-
-        <div class="bottom-drawer" :class="{ collapsed: bottomCollapsed }">
+        <div class="bottom-drawer" :class="{ collapsed: bottomCollapsed }" :style="{ height: bottomCollapsed ? '44px' : drawerHeight + 'px' }">
+          <div v-if="!bottomCollapsed" class="drawer-resize-handle" @pointerdown="startResize">
+            <div class="drawer-resize-grip"></div>
+          </div>
           <div class="drawer-header">
             <div class="tabs">
               <button type="button" class="tab" :class="{ active: bottomTab === 'history' }" @click="bottomTab = 'history'">历史</button>
@@ -171,7 +176,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watch, onBeforeUnmount } from 'vue';
 import SchemaForm from './SchemaForm.vue';
 import McpHistoryPanel, { type HistoryEntry } from './McpHistoryPanel.vue';
 import McpNotificationsPanel, { type NotifyEntry, type NotifyLevel } from './McpNotificationsPanel.vue';
@@ -198,14 +203,29 @@ const selectedTool = ref<McpTool | null>(null);
 const toolArguments = ref<Record<string, any>>({});
 const callResult = ref<CallResponse | null>(null);
 const resultView = ref<'structured' | 'raw'>('structured');
+const resultCollapsed = ref(false);
 const toolQuery = ref('');
 
 const bottomTab = ref<'history' | 'events'>('history');
 const bottomCollapsed = ref(true);
+const drawerHeight = ref(280);
 
 const history = ref<HistoryEntry[]>([]);
 const events = ref<NotifyEntry[]>([]);
 const historySeq = ref(0);
+const resizing = ref(false);
+const resizeStartY = ref(0);
+const resizeStartHeight = ref(0);
+const activePointerId = ref<number | null>(null);
+
+try {
+  const stored = Number(localStorage.getItem('mcpTestPanel.drawerHeight'));
+  if (Number.isFinite(stored) && stored >= 120 && stored <= 520) {
+    drawerHeight.value = stored;
+  }
+} catch {
+  // ignore
+}
 
 // 计算属性
 const connectionStatus = computed(() => {
@@ -232,6 +252,60 @@ const filteredTools = computed(() => {
     const d = (t.description || '').toLowerCase();
     return n.includes(q) || d.includes(q);
   });
+});
+
+watch(
+  () => [tools.value.length, connectResult.value?.success] as const,
+  () => {
+    if (!selectedTool.value && tools.value.length > 0) {
+      selectTool(tools.value[0]);
+    }
+  },
+  { immediate: true }
+);
+
+const clampDrawerHeight = (value: number) => {
+  const min = 160;
+  const max = Math.floor(Math.max(320, window.innerHeight * 0.6));
+  return Math.max(min, Math.min(max, value));
+};
+
+const onPointerMove = (e: PointerEvent) => {
+  if (!resizing.value) return;
+  if (activePointerId.value !== null && e.pointerId !== activePointerId.value) return;
+  const dy = resizeStartY.value - e.clientY;
+  const next = resizeStartHeight.value + dy;
+  drawerHeight.value = clampDrawerHeight(next);
+};
+
+const stopResize = () => {
+  if (!resizing.value) return;
+  resizing.value = false;
+  window.removeEventListener('pointermove', onPointerMove);
+  window.removeEventListener('pointerup', stopResize);
+  window.removeEventListener('pointercancel', stopResize);
+  activePointerId.value = null;
+  try {
+    localStorage.setItem('mcpTestPanel.drawerHeight', String(drawerHeight.value));
+  } catch {
+    // ignore
+  }
+};
+
+const startResize = (e: PointerEvent) => {
+  if (bottomCollapsed.value) return;
+  e.preventDefault();
+  resizing.value = true;
+  resizeStartY.value = e.clientY;
+  resizeStartHeight.value = drawerHeight.value;
+  activePointerId.value = e.pointerId;
+  window.addEventListener('pointermove', onPointerMove);
+  window.addEventListener('pointerup', stopResize);
+  window.addEventListener('pointercancel', stopResize);
+};
+
+onBeforeUnmount(() => {
+  stopResize();
 });
 
 const addEvent = (level: NotifyLevel, message: string, payload?: any) => {
@@ -309,6 +383,7 @@ const selectTool = (tool: McpTool) => {
   toolArguments.value = {};
   callResult.value = null;
   resultView.value = 'structured';
+  resultCollapsed.value = false;
 };
 
 // 执行工具
@@ -766,6 +841,10 @@ const confirmTest = async (status: number) => {
   grid-template-rows: auto 1fr 240px;
 }
 
+.runner.result-collapsed {
+  grid-template-rows: auto 1fr 44px;
+}
+
 .runner-header {
   padding: 14px 16px;
   border-bottom: 1px solid #e2e8f0;
@@ -895,13 +974,42 @@ const confirmTest = async (status: number) => {
   background: #fff;
   overflow: hidden;
   flex-shrink: 0;
-  height: 280px;
   display: flex;
   flex-direction: column;
 }
 
 .bottom-drawer.collapsed {
   height: 44px;
+}
+
+.drawer-resize-handle {
+  height: 12px;
+  cursor: row-resize;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  touch-action: none;
+}
+
+.drawer-resize-handle:hover {
+  background: #eff6ff;
+}
+
+.drawer-resize-grip {
+  width: 48px;
+  height: 4px;
+  border-radius: 999px;
+  background: #cbd5e1;
+  box-shadow: 0 -6px 0 #cbd5e1, 0 6px 0 #cbd5e1;
+  opacity: 0.8;
+}
+
+.drawer-resize-handle:hover .drawer-resize-grip {
+  background: #93c5fd;
+  box-shadow: 0 -6px 0 #93c5fd, 0 6px 0 #93c5fd;
 }
 
 .drawer-header {
