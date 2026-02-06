@@ -66,50 +66,52 @@
 
       <!-- 右侧工具详情 -->
       <div class="tool-detail" v-if="selectedTool">
-        <div class="detail-header">
-          <h3>{{ selectedTool.name }}</h3>
-          <p class="tool-description" v-if="selectedTool.description">
-            {{ selectedTool.description }}
-          </p>
-        </div>
-
-        <!-- 参数表单 -->
-        <div class="params-section">
-          <div class="section-title">参数</div>
-          <SchemaForm 
-            :schema="selectedTool.inputSchema" 
-            v-model="toolArguments"
-          />
-        </div>
-
-        <!-- 执行按钮 -->
-        <div class="execute-section">
-          <button 
-            class="btn btn-primary btn-execute"
-            :disabled="calling"
-            @click="executeTool"
-          >
-            {{ calling ? '执行中...' : '执行' }}
-          </button>
-        </div>
-
-        <!-- 结果展示 -->
-        <div class="result-section" v-if="callResult !== null">
-          <div class="section-title">
-            执行结果
-            <span class="result-time" v-if="callResult.duration_ms">
-              ({{ callResult.duration_ms }}ms)
-            </span>
+        <div class="tool-detail-scroll">
+          <div class="detail-header">
+            <h3>{{ selectedTool.name }}</h3>
+            <p class="tool-description" v-if="selectedTool.description">
+              {{ selectedTool.description }}
+            </p>
           </div>
-          <div 
-            class="result-content"
-            :class="{ error: callResult.is_error || !callResult.success }"
-          >
-            <pre>{{ formatResult(callResult) }}</pre>
+
+          <!-- 参数表单 -->
+          <div class="params-section">
+            <div class="section-title">参数</div>
+            <SchemaForm 
+              :schema="selectedTool.inputSchema" 
+              v-model="toolArguments"
+            />
           </div>
-          <button class="btn btn-sm btn-copy" @click="copyResult">
-            复制结果
-          </button>
+
+          <!-- 执行按钮 -->
+          <div class="execute-section">
+            <button 
+              class="btn btn-primary btn-execute"
+              :disabled="calling"
+              @click="executeTool"
+            >
+              {{ calling ? '执行中...' : '执行' }}
+            </button>
+          </div>
+
+          <!-- 结果展示 -->
+          <div class="result-section" v-if="callResult !== null">
+            <div class="section-title">
+              执行结果
+              <span class="result-time" v-if="callResult.duration_ms">
+                ({{ callResult.duration_ms }}ms)
+              </span>
+            </div>
+            <div 
+              class="result-content"
+              :class="{ error: callResult.is_error || !callResult.success }"
+            >
+              <pre>{{ formatResult(callResult) }}</pre>
+            </div>
+            <button class="btn btn-sm btn-copy" @click="copyResult">
+              复制结果
+            </button>
+          </div>
         </div>
       </div>
 
@@ -455,6 +457,12 @@ const confirmTest = async (status: number) => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  min-width: 0;
+}
+
+.tool-detail-scroll {
+  flex: 1;
+  overflow-y: auto;
 }
 
 .detail-header {

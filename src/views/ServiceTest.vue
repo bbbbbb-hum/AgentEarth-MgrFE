@@ -668,9 +668,9 @@ onMounted(() => {
 
 .modal-container {
   width: 100%;
-  max-width: 900px;
-  height: 80vh;
-  max-height: 700px;
+  max-width: 1000px;
+  height: 85vh;
+  max-height: 850px;
   background: #fff;
   border-radius: 12px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
