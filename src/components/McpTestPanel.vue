@@ -104,23 +104,23 @@
               />
             </div>
           </div>
-
-          <!-- 底部固定操作栏 -->
-          <div class="action-bar-sticky">
-             <button 
-              class="btn btn-primary btn-block btn-lg btn-glow"
-              :class="{ 'is-loading': calling }"
-              :disabled="calling"
-              @click="executeTool"
-            >
-              <span class="icon" v-if="!calling">▶</span>
-              <span class="spinner" v-else></span>
-              {{ calling ? '执行中...' : '运行工具' }}
-            </button>
-          </div>
         </div>
 
-        <!-- 下半部分：终端输出 (固定高度/可伸缩) -->
+        <!-- 中间：操作栏 (固定在上下分栏之间) -->
+        <div class="action-bar-divider">
+            <button 
+            class="btn btn-primary btn-block btn-md btn-glow"
+            :class="{ 'is-loading': calling }"
+            :disabled="calling"
+            @click="executeTool"
+          >
+            <span class="icon" v-if="!calling">▶</span>
+            <span class="spinner" v-else></span>
+            {{ calling ? '执行中...' : '运行工具' }}
+          </button>
+        </div>
+
+        <!-- 下半部分：终端输出 (Flex 0 0 auto) -->
         <div class="workbench-bottom">
           <div class="terminal-header">
             <div class="terminal-controls">
@@ -671,11 +671,11 @@ const confirmTest = async (status: number) => {
   flex-direction: column;
   overflow-y: auto;
   background: #fff;
-  min-height: 300px;
+  min-height: 0; /* 允许压缩 */
 }
 
 .tool-header {
-  padding: 24px 32px 16px;
+  padding: 20px 24px 12px;
   flex-shrink: 0;
 }
 
@@ -713,7 +713,7 @@ const confirmTest = async (status: number) => {
 
 .tool-config {
   flex: 1;
-  padding: 0 32px 24px;
+  padding: 0 24px 20px;
 }
 
 .section-header {
@@ -740,27 +740,25 @@ const confirmTest = async (status: number) => {
   max-width: 1000px; /* 限制最大宽度，保持阅读舒适度 */
 }
 
-/* 底部固定操作栏 */
-.action-bar-sticky {
-  padding: 16px 32px;
+/* 中间操作栏 */
+.action-bar-divider {
+  padding: 12px 24px;
   background: #fff;
   border-top: 1px solid #f1f5f9;
-  position: sticky;
-  bottom: 0;
-  z-index: 10;
-  box-shadow: 0 -4px 12px rgba(0,0,0,0.02);
+  border-bottom: 1px solid #e2e8f0;
+  z-index: 5;
+  flex-shrink: 0;
 }
 
 /* 下部：终端区域 */
 .workbench-bottom {
-  height: 320px; /* 固定高度，或者使用 flex-basis */
-  min-height: 200px;
-  max-height: 60%;
+  height: 35%; /* 使用百分比高度 */
+  min-height: 180px;
+  max-height: 500px;
   display: flex;
   flex-direction: column;
   background: #1e293b;
   color: #e2e8f0;
-  border-top: 1px solid #334155;
   flex-shrink: 0;
 }
 

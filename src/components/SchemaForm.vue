@@ -80,17 +80,17 @@
               :key="index"
               class="array-item"
             >
-              <span class="array-index">{{ index + 1 }}</span>
+              <span class="array-index">{{ Number(index) + 1 }}</span>
               <input
                 type="text"
                 class="field-input array-input"
                 v-model="formData[propName][index]"
-                :placeholder="`输入第 ${index + 1} 项的值`"
+                :placeholder="`输入第 ${Number(index) + 1} 项的值`"
               />
               <button 
                 type="button" 
                 class="btn-icon btn-remove"
-                @click="removeArrayItem(propName, index)"
+                @click="removeArrayItem(propName, Number(index))"
                 title="移除此项"
               >
                 ×
