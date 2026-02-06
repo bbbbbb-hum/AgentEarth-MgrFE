@@ -210,53 +210,63 @@ onMounted(() => {
 
 <style scoped>
 .schema-form {
-  padding: 16px 0;
+  padding: 0;
 }
 
 .no-params {
-  color: #9ca3af;
+  color: #64748b;
   font-size: 0.9rem;
   text-align: center;
-  padding: 20px;
-  background: #f9fafb;
-  border-radius: 6px;
+  padding: 32px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px dashed #e2e8f0;
 }
 
 .form-fields {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
 }
 
 .form-field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
 .field-label {
   font-size: 0.9rem;
-  font-weight: 500;
-  color: #374151;
+  font-weight: 600;
+  color: #334155;
+  display: flex;
+  align-items: center;
 }
 
 .required {
   color: #ef4444;
-  margin-left: 2px;
+  margin-left: 4px;
 }
 
 .field-description {
   font-size: 0.8rem;
-  color: #6b7280;
+  color: #64748b;
   margin-bottom: 4px;
+  line-height: 1.4;
 }
 
 .field-input {
-  padding: 10px 12px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  font-size: 0.9rem;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  padding: 10px 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  transition: all 0.2s ease;
+  background: #fff;
+  color: #1e293b;
+}
+
+.field-input:hover {
+  border-color: #94a3b8;
 }
 
 .field-input:focus {
@@ -267,16 +277,18 @@ onMounted(() => {
 
 .field-textarea {
   resize: vertical;
-  min-height: 80px;
-  font-family: monospace;
+  min-height: 100px;
+  font-family: 'Fira Code', monospace;
+  font-size: 0.9rem;
 }
 
 /* Switch 样式 */
 .switch-label {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   cursor: pointer;
+  padding: 4px 0;
 }
 
 .switch-input {
@@ -284,25 +296,25 @@ onMounted(() => {
 }
 
 .switch-slider {
-  width: 44px;
-  height: 24px;
-  background: #d1d5db;
-  border-radius: 12px;
+  width: 48px;
+  height: 26px;
+  background: #cbd5e1;
+  border-radius: 13px;
   position: relative;
-  transition: background 0.2s;
+  transition: background 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .switch-slider::after {
   content: '';
   position: absolute;
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   background: white;
   border-radius: 50%;
   top: 2px;
   left: 2px;
-  transition: transform 0.2s;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .switch-input:checked + .switch-slider {
@@ -310,24 +322,25 @@ onMounted(() => {
 }
 
 .switch-input:checked + .switch-slider::after {
-  transform: translateX(20px);
+  transform: translateX(22px);
 }
 
 .switch-text {
   font-size: 0.9rem;
-  color: #4b5563;
+  color: #475569;
+  font-weight: 500;
 }
 
 /* Array 样式 */
 .array-field {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .array-item {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   align-items: center;
 }
 
@@ -336,10 +349,10 @@ onMounted(() => {
 }
 
 .btn-icon {
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -350,39 +363,29 @@ onMounted(() => {
 
 .btn-remove {
   background: #fee2e2;
-  color: #dc2626;
+  color: #ef4444;
 }
 
 .btn-remove:hover {
   background: #fecaca;
+  color: #dc2626;
 }
 
 .btn-add {
-  background: #dbeafe;
+  background: #eff6ff;
   color: #2563eb;
-  border: none;
+  border: 1px dashed #bfdbfe;
   padding: 8px 16px;
-  border-radius: 6px;
+  border-radius: 8px;
   font-size: 0.85rem;
   cursor: pointer;
   align-self: flex-start;
+  transition: all 0.2s;
+  font-weight: 500;
 }
 
 .btn-add:hover {
-  background: #bfdbfe;
-}
-
-.btn {
-  padding: 8px 16px;
-  border: none;
-  border-radius: 6px;
-  font-size: 0.9rem;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.btn-sm {
-  padding: 6px 12px;
-  font-size: 0.85rem;
+  background: #dbeafe;
+  border-color: #93c5fd;
 }
 </style>
