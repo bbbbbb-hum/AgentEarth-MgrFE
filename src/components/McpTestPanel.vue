@@ -138,8 +138,49 @@
               </div>
               <div v-if="!resultCollapsed" class="result-body custom-scrollbar">
                 <div v-if="!callResult && !calling" class="placeholder">运行工具后将在此处显示返回结果</div>
-                <div v-else-if="calling" class="placeholder">正在等待服务响应...</div>
-                <pre v-else class="code">{{ resultView === 'structured' ? formatStructured(callResult) : formatJson(callResult) }}</pre>
+                <div v-else-if="calling" class="calling-overlay">
+                  <div class="calling-content">
+                    <div class="calling-spinner-large"></div>
+                    <div class="calling-info">
+                      <div class="calling-title">正在调用 {{ selectedTool?.name }}</div>
+                      <div class="calling-timer">
+                        已等待 <span class="time-value">{{ elapsedSeconds }}</span>s / {{ timeoutSeconds }}s
+                      </div>
+                      <div class="calling-progress">
+                        <div class="progress-bar">
+                          <div 
+                            class="progress-fill" 
+                            :style="{ width: progressPercent + '%' }"
+                            :class="{ 'progress-warning': progressPercent > 70, 'progress-danger': progressPercent > 90 }"
+                          ></div>
+                        </div>
+                      </div>
+                      <button class="btn btn-light btn-sm btn-cancel" @click="cancelCall">
+                        取消调用
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <template v-else>
+                  <!-- 结构化视图 -->
+                  <template v-if="resultView === 'structured'">
+                    <!-- 成功且无错误 -->
+                    <template v-if="callResult.success && !callResult.is_error">
+                      <ContentRenderer :content="callResult.content" />
+                    </template>
+                    <!-- 工具返回错误 -->
+                    <div v-else class="error-result">
+                      <div class="error-header">
+                        <span class="error-icon">⚠️</span>
+                        <span class="error-title">{{ callResult.success ? '工具执行错误' : '调用失败' }}</span>
+                      </div>
+                      <div class="error-message">{{ callResult.error || '未知错误' }}</div>
+                      <ContentRenderer v-if="callResult.content" :content="callResult.content" />
+                    </div>
+                  </template>
+                  <!-- 原始JSON视图 -->
+                  <pre v-else class="code">{{ formatJson(callResult) }}</pre>
+                </template>
               </div>
             </div>
           </template>
@@ -199,6 +240,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onBeforeUnmount } from 'vue';
 import SchemaForm from './SchemaForm.vue';
+import ContentRenderer from './ContentRenderer.vue';
 import McpHistoryPanel, { type HistoryEntry } from './McpHistoryPanel.vue';
 import McpNotificationsPanel, { type NotifyEntry, type NotifyLevel } from './McpNotificationsPanel.vue';
 import { testConnect, testCall, testConfirm } from '../api/mcpTest';
@@ -240,6 +282,16 @@ const resultHeight = ref(320);
 const history = ref<HistoryEntry[]>([]);
 const events = ref<NotifyEntry[]>([]);
 const historySeq = ref(0);
+
+// 历史记录持久化相关常量
+const HISTORY_STORAGE_KEY = `mcp-history-${props.configId}`;
+const HISTORY_MAX_ITEMS = 50; // 最大保存条数
+
+// 超时进度相关状态
+const timeoutSeconds = ref(30); // 默认超时时间（秒）
+const elapsedSeconds = ref(0);
+const callStartTime = ref<number | null>(null);
+const progressTimer = ref<ReturnType<typeof setInterval> | null>(null);
 const resizing = ref(false);
 const resizeStartY = ref(0);
 const resizeStartHeight = ref(0);
@@ -266,6 +318,44 @@ try {
 } catch {
   // ignore
 }
+
+// 加载持久化的历史记录
+const loadPersistedHistory = () => {
+  try {
+    const stored = localStorage.getItem(HISTORY_STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed)) {
+        history.value = parsed;
+        // 恢复 historySeq
+        if (parsed.length > 0) {
+          historySeq.value = Math.max(...parsed.map((h: HistoryEntry) => h.seq || 0));
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('加载历史记录失败:', e);
+  }
+};
+
+// 保存历史记录到 localStorage
+const saveHistoryToStorage = () => {
+  try {
+    // 只保存最近的 HISTORY_MAX_ITEMS 条记录
+    const toSave = history.value.slice(0, HISTORY_MAX_ITEMS);
+    localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(toSave));
+  } catch (e) {
+    console.warn('保存历史记录失败:', e);
+  }
+};
+
+// 初始化时加载历史记录
+loadPersistedHistory();
+
+// 监听历史记录变化，自动保存
+watch(history, () => {
+  saveHistoryToStorage();
+}, { deep: true });
 
 // 计算属性
 const connectionStatus = computed(() => {
@@ -404,6 +494,7 @@ const startResultResize = (e: PointerEvent) => {
 onBeforeUnmount(() => {
   stopResize();
   stopResultResize();
+  stopProgressTimer();
 });
 
 const addEvent = (level: NotifyLevel, message: string, payload?: any) => {
@@ -486,12 +577,52 @@ const selectTool = (tool: McpTool) => {
   addEvent('info', `选择工具：${tool.name}`);
 };
 
+// 启动进度计时器
+const startProgressTimer = () => {
+  callStartTime.value = Date.now();
+  elapsedSeconds.value = 0;
+  progressTimer.value = setInterval(() => {
+    if (callStartTime.value) {
+      elapsedSeconds.value = Math.floor((Date.now() - callStartTime.value) / 1000);
+    }
+  }, 100);
+};
+
+// 停止进度计时器
+const stopProgressTimer = () => {
+  if (progressTimer.value) {
+    clearInterval(progressTimer.value);
+    progressTimer.value = null;
+  }
+  callStartTime.value = null;
+};
+
+// 计算进度百分比
+const progressPercent = computed(() => {
+  if (!calling.value || timeoutSeconds.value <= 0) return 0;
+  return Math.min(100, (elapsedSeconds.value / timeoutSeconds.value) * 100);
+});
+
+// 取消调用（目前仅关闭进度指示，实际请求无法取消）
+const cancelCall = () => {
+  stopProgressTimer();
+  calling.value = false;
+  callResult.value = {
+    success: false,
+    error: '用户取消了调用'
+  };
+  if (selectedTool.value) {
+    addEvent('warn', `用户取消调用：${selectedTool.value.name}`);
+  }
+};
+
 // 执行工具
 const executeTool = async () => {
   if (!selectedTool.value) return;
   
   calling.value = true;
   callResult.value = null;
+  startProgressTimer();
   
   try {
     const response = await testCall(
@@ -529,6 +660,7 @@ const executeTool = async () => {
       selectedTool.value.name
     );
   } finally {
+    stopProgressTimer();
     calling.value = false;
   }
 };
@@ -550,16 +682,6 @@ const formatJson = (value: any): string => {
     return JSON.stringify(value, null, 2);
   } catch {
     return String(value);
-  }
-};
-
-const formatStructured = (result: CallResponse | null): string => {
-  if (!result) return '';
-  if (!result.success || result.is_error) return `错误：${result.error || '未知错误'}`;
-  try {
-    return JSON.stringify(result.content, null, 2);
-  } catch {
-    return String(result.content);
   }
 };
 
@@ -590,6 +712,12 @@ const clearInput = () => {
 
 const clearHistory = () => {
   history.value = [];
+  historySeq.value = 0;
+  try {
+    localStorage.removeItem(HISTORY_STORAGE_KEY);
+  } catch {
+    // ignore
+  }
 };
 
 const clearEvents = () => {
@@ -1088,6 +1216,151 @@ const confirmTest = async (status: number) => {
   color: rgba(226, 232, 240, 0.55);
   font-size: 0.9rem;
   padding: 10px 0;
+}
+
+.calling-placeholder {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.calling-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(226, 232, 240, 0.2);
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+/* 错误结果样式 */
+.error-result {
+  padding: 16px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 8px;
+}
+
+.error-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.error-icon {
+  font-size: 1.2rem;
+}
+
+.error-title {
+  font-weight: 700;
+  color: #fca5a5;
+  font-size: 0.95rem;
+}
+
+.error-message {
+  color: #fecaca;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  padding: 10px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* 调用进度指示器样式 */
+.calling-overlay {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+}
+
+.calling-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  text-align: center;
+}
+
+.calling-spinner-large {
+  width: 48px;
+  height: 48px;
+  border: 3px solid rgba(59, 130, 246, 0.2);
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.calling-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.calling-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.calling-timer {
+  font-size: 0.9rem;
+  color: #94a3b8;
+}
+
+.time-value {
+  font-weight: 700;
+  color: #3b82f6;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.calling-progress {
+  width: 200px;
+}
+
+.progress-bar {
+  height: 6px;
+  background: rgba(100, 116, 139, 0.3);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: #3b82f6;
+  border-radius: 3px;
+  transition: width 0.1s linear, background 0.3s ease;
+}
+
+.progress-fill.progress-warning {
+  background: #f59e0b;
+}
+
+.progress-fill.progress-danger {
+  background: #ef4444;
+  animation: pulse-danger 0.5s ease-in-out infinite alternate;
+}
+
+@keyframes pulse-danger {
+  from { opacity: 0.8; }
+  to { opacity: 1; }
+}
+
+.btn-cancel {
+  margin-top: 8px;
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #fca5a5;
+}
+
+.btn-cancel:hover {
+  background: rgba(239, 68, 68, 0.25);
+  border-color: rgba(239, 68, 68, 0.5);
 }
 
 .code {

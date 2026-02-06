@@ -79,14 +79,53 @@
               v-for="(item, index) in (formData[propName] || [])" 
               :key="index"
               class="array-item"
+              :class="{ 'array-item-complex': isComplexArrayItem(propSchema) }"
             >
               <span class="array-index">{{ Number(index) + 1 }}</span>
-              <input
-                type="text"
-                class="field-input array-input"
-                v-model="formData[propName][index]"
-                :placeholder="`输入第 ${Number(index) + 1} 项的值`"
-              />
+              
+              <!-- 复杂类型数组项（object） -->
+              <template v-if="propSchema.items?.type === 'object' && propSchema.items?.properties">
+                <div class="array-item-nested">
+                  <SchemaForm 
+                    :schema="propSchema.items" 
+                    v-model="formData[propName][index]"
+                  />
+                </div>
+              </template>
+              <!-- 数字类型数组项 -->
+              <template v-else-if="propSchema.items?.type === 'number' || propSchema.items?.type === 'integer'">
+                <input
+                  type="number"
+                  class="field-input array-input"
+                  v-model.number="formData[propName][index]"
+                  :placeholder="`输入第 ${Number(index) + 1} 项的数值`"
+                  :step="propSchema.items?.type === 'integer' ? 1 : 'any'"
+                />
+              </template>
+              <!-- 布尔类型数组项 -->
+              <template v-else-if="propSchema.items?.type === 'boolean'">
+                <label class="switch-label switch-inline">
+                  <input
+                    type="checkbox"
+                    class="switch-input"
+                    v-model="formData[propName][index]"
+                  />
+                  <div class="switch-track">
+                    <span class="switch-thumb"></span>
+                  </div>
+                  <span class="switch-text">{{ formData[propName][index] ? 'True' : 'False' }}</span>
+                </label>
+              </template>
+              <!-- 默认字符串类型数组项 -->
+              <template v-else>
+                <input
+                  type="text"
+                  class="field-input array-input"
+                  v-model="formData[propName][index]"
+                  :placeholder="`输入第 ${Number(index) + 1} 项的值`"
+                />
+              </template>
+              
               <button 
                 type="button" 
                 class="btn-icon btn-remove"
@@ -100,20 +139,40 @@
           <button 
             type="button" 
             class="btn-dashed btn-add"
-            @click="addArrayItem(propName)"
+            @click="addArrayItem(propName, propSchema)"
           >
             <span class="plus-icon">+</span> 添加项
           </button>
         </div>
         
-        <!-- Object 类型 (JSON编辑器) -->
-        <div class="input-wrapper" v-else-if="propSchema.type === 'object'">
-          <textarea
-            class="field-input field-textarea"
-            :placeholder="getPlaceholder(propSchema)"
-            v-model="formData[propName]"
-            rows="5"
-          ></textarea>
+        <!-- Object 类型：递归渲染子表单或 JSON 编辑器 -->
+        <div v-else-if="propSchema.type === 'object'" class="object-field">
+          <!-- 有明确 properties 定义的 object：递归渲染 -->
+          <template v-if="propSchema.properties && Object.keys(propSchema.properties).length > 0">
+            <div class="nested-object">
+              <div class="nested-header">
+                <span class="nested-icon">📦</span>
+                <span class="nested-title">{{ propName }}</span>
+                <span class="nested-badge">Object</span>
+              </div>
+              <div class="nested-body">
+                <SchemaForm 
+                  :schema="propSchema" 
+                  v-model="formData[propName]"
+                />
+              </div>
+            </div>
+          </template>
+          <!-- 无 properties 定义的 object：JSON 编辑器 -->
+          <template v-else>
+            <textarea
+              class="field-input field-textarea"
+              :placeholder="getPlaceholder(propSchema)"
+              v-model="formData[propName]"
+              rows="5"
+            ></textarea>
+            <div class="json-hint">请输入有效的 JSON 格式数据</div>
+          </template>
         </div>
         
         <!-- 其他类型 (默认文本输入) -->
@@ -159,14 +218,22 @@ const initFormData = () => {
         data[key] = false;
       } else if (propSchema.type === 'number' || propSchema.type === 'integer') {
         data[key] = null;
+      } else if (propSchema.type === 'object') {
+        // 对于有 properties 的 object 类型，初始化为空对象
+        // 子表单会负责初始化具体字段
+        data[key] = {};
       } else {
         data[key] = '';
       }
     }
   }
-  // 合并外部传入的值
+  // 合并外部传入的值（深度合并）
   if (props.modelValue) {
-    Object.assign(data, props.modelValue);
+    for (const [key, value] of Object.entries(props.modelValue)) {
+      if (value !== undefined && value !== null) {
+        data[key] = value;
+      }
+    }
   }
   formData.value = data;
 };
@@ -183,12 +250,56 @@ const getPlaceholder = (propSchema: JSONSchema): string => {
   return `请输入 ${propSchema.type || '值'}`;
 };
 
+// 检查数组项是否为复杂类型
+const isComplexArrayItem = (propSchema: JSONSchema): boolean => {
+  return propSchema.items?.type === 'object' && !!propSchema.items?.properties;
+};
+
+// 创建数组项的默认值
+const createArrayItemDefault = (propSchema: JSONSchema): any => {
+  const itemSchema = propSchema.items;
+  if (!itemSchema) return '';
+  
+  switch (itemSchema.type) {
+    case 'object':
+      if (itemSchema.properties) {
+        // 递归创建嵌套对象的默认值
+        const obj: Record<string, any> = {};
+        for (const [key, subSchema] of Object.entries(itemSchema.properties)) {
+          if (subSchema.default !== undefined) {
+            obj[key] = subSchema.default;
+          } else if (subSchema.type === 'array') {
+            obj[key] = [];
+          } else if (subSchema.type === 'boolean') {
+            obj[key] = false;
+          } else if (subSchema.type === 'number' || subSchema.type === 'integer') {
+            obj[key] = null;
+          } else if (subSchema.type === 'object') {
+            obj[key] = {};
+          } else {
+            obj[key] = '';
+          }
+        }
+        return obj;
+      }
+      return {};
+    case 'number':
+    case 'integer':
+      return null;
+    case 'boolean':
+      return false;
+    default:
+      return '';
+  }
+};
+
 // 数组操作
-const addArrayItem = (propName: string) => {
+const addArrayItem = (propName: string, propSchema?: JSONSchema) => {
   if (!formData.value[propName]) {
     formData.value[propName] = [];
   }
-  formData.value[propName].push('');
+  const defaultValue = propSchema ? createArrayItemDefault(propSchema) : '';
+  formData.value[propName].push(defaultValue);
 };
 
 const removeArrayItem = (propName: string, index: number) => {
@@ -489,5 +600,103 @@ onMounted(() => {
 .plus-icon {
   font-size: 1.1rem;
   font-weight: bold;
+}
+
+/* 嵌套 Object 样式 */
+.object-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nested-object {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fafbfc;
+}
+
+.nested-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: #f1f5f9;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.nested-icon {
+  font-size: 0.9rem;
+}
+
+.nested-title {
+  font-weight: 600;
+  color: #334155;
+  font-size: 0.85rem;
+}
+
+.nested-badge {
+  font-size: 0.65rem;
+  color: #64748b;
+  background: #e2e8f0;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: monospace;
+  margin-left: auto;
+}
+
+.nested-body {
+  padding: 14px;
+}
+
+.nested-body :deep(.form-fields) {
+  gap: 18px;
+}
+
+.json-hint {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  margin-top: 4px;
+}
+
+/* 复杂数组项样式 */
+.array-item-complex {
+  flex-direction: column;
+  align-items: stretch;
+  padding: 12px;
+}
+
+.array-item-complex .array-index {
+  align-self: flex-start;
+  margin-bottom: 8px;
+}
+
+.array-item-complex .btn-remove {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+}
+
+.array-item-nested {
+  flex: 1;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px;
+  margin-top: 4px;
+}
+
+.array-item-nested :deep(.form-fields) {
+  gap: 14px;
+}
+
+.switch-inline {
+  padding: 0;
+  flex: 1;
+}
+
+/* 让复杂数组项相对定位 */
+.array-item-complex {
+  position: relative;
 }
 </style>
