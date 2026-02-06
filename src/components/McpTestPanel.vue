@@ -862,6 +862,7 @@ const confirmTest = async (status: number) => {
   display: flex;
   flex: 1 1 0;
   min-height: 0;
+  height: 0; /* 配合 flex: 1 确保高度正确计算 */
   overflow: hidden;
   background: var(--background);
 }
@@ -881,7 +882,9 @@ const confirmTest = async (status: number) => {
   display: flex;
   flex-direction: column;
   overflow-y: auto;
-  align-self: stretch;
+  /* 确保 sidebar 铺满父容器高度 */
+  height: 100%;
+  min-height: 0;
 }
 
 .connection-card {
@@ -1097,11 +1100,12 @@ const confirmTest = async (status: number) => {
 
 /* 两列网格布局 */
 .tools-grid {
-  flex: 1;
+  flex: 1 1 0;
   display: grid;
   grid-template-columns: 300px 1fr;
   gap: 16px;
   min-height: 0;
+  height: 0; /* 配合 flex: 1 确保高度正确计算 */
   overflow: hidden;
 }
 
@@ -1476,7 +1480,7 @@ const confirmTest = async (status: number) => {
    底部抽屉分割线
    ============================================ */
 .work-splitter {
-  height: 8px;
+  height: 12px;
   flex-shrink: 0;
   cursor: row-resize;
   display: flex;
@@ -1486,10 +1490,16 @@ const confirmTest = async (status: number) => {
   touch-action: none;
   background: transparent;
   transition: background 0.15s;
+  position: relative;
+  z-index: 10;
+  /* 增加可点击区域 */
+  margin: -4px 0;
+  padding: 4px 0;
 }
 
-.work-splitter:hover {
-  background: hsl(var(--primary) / 0.1);
+.work-splitter:hover,
+.work-splitter:active {
+  background: hsl(221.2 83.2% 53.3% / 0.1);
 }
 
 .work-splitter-grip {
@@ -1498,9 +1508,11 @@ const confirmTest = async (status: number) => {
   border-radius: 2px;
   background: var(--border);
   transition: background 0.15s;
+  pointer-events: none;
 }
 
-.work-splitter:hover .work-splitter-grip {
+.work-splitter:hover .work-splitter-grip,
+.work-splitter:active .work-splitter-grip {
   background: var(--primary);
 }
 
@@ -1516,11 +1528,14 @@ const confirmTest = async (status: number) => {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  height: var(--drawerHeight);
+  height: var(--drawerHeight, 280px);
+  min-height: 120px;
+  transition: height 0.15s ease;
 }
 
 .bottom-drawer.collapsed {
-  height: 40px;
+  height: 44px;
+  min-height: 44px;
 }
 
 .drawer-header {

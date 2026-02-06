@@ -7,14 +7,19 @@ const route = useRoute();
 const router = useRouter();
 const sidebarOpen = ref(true);
 
-// 用户信息
-const currentUsername = computed(() => localStorage.getItem('username') || '未登录');
+// 用户信息 - 使用 ref 而不是 computed，因为 localStorage 不是响应式的
+const currentUsername = ref('未登录');
 
 // 登出处理
 const handleLogout = () => {
   if (confirm('确定要退出登录吗？')) {
     logout();
   }
+};
+
+// 更新用户名显示
+const updateUsername = () => {
+  currentUsername.value = localStorage.getItem('username') || '未登录';
 };
 
 // 判断菜单项是否激活
@@ -326,11 +331,26 @@ watch(
 
 // 监听组件挂载事件
 onMounted(() => {
+  // 初始化用户名显示
+  updateUsername();
+  
   // 添加事件监听，用于接收详情页发送的服务名称
   window.addEventListener('update-tab-service-name', (event: Event) => {
     const customEvent = event as CustomEvent<{ path: string; serviceName: string }>;
     updateTabServiceName(customEvent.detail.path, customEvent.detail.serviceName);
   });
+  
+  // 监听 storage 事件，以便在其他标签页登录时更新用户名
+  window.addEventListener('storage', (event) => {
+    if (event.key === 'username') {
+      updateUsername();
+    }
+  });
+});
+
+// 监听路由变化时也更新用户名（登录后跳转时触发）
+watch(() => route.path, () => {
+  updateUsername();
 });
 </script>
 
