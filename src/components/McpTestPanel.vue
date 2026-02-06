@@ -161,7 +161,7 @@
                     </div>
                   </div>
                 </div>
-                <template v-else>
+                <template v-else-if="callResult">
                   <!-- 结构化视图 -->
                   <template v-if="resultView === 'structured'">
                     <!-- 成功且无错误 -->
