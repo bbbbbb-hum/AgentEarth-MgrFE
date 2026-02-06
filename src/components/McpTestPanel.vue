@@ -885,7 +885,9 @@ const confirmTest = async (status: number) => {
 
 .main-content {
   display: flex;
-  flex: 1;
+  /* 使用 flex: 1 1 0 确保正确分配空间 */
+  flex: 1 1 0;
+  min-height: 0;
   overflow: hidden;
   background: #f8fafc;
 }
@@ -904,8 +906,7 @@ const confirmTest = async (status: number) => {
   gap: 12px;
   padding: 12px;
   overflow: hidden;
-  /* 确保 sidebar 完整填满父容器高度 */
-  height: 100%;
+  /* Flexbox 子元素默认会拉伸到父容器高度，不需要 height: 100% */
 }
 
 .card {
@@ -1074,11 +1075,13 @@ const confirmTest = async (status: number) => {
 }
 
 .work-area {
-  flex: 1;
+  /* 使用 flex: 1 1 0 确保正确分配空间 */
+  flex: 1 1 0;
   min-width: 0;
   min-height: 0;
-  display: grid;
-  grid-template-rows: 1fr 12px var(--drawerHeight);
+  /* Flexbox 列布局 */
+  display: flex;
+  flex-direction: column;
   padding: 12px;
   gap: 0;
   overflow: hidden;
@@ -1086,12 +1089,14 @@ const confirmTest = async (status: number) => {
 }
 
 .runner {
-  min-height: 0;
+  /* Flexbox 子元素：占据剩余空间，确保至少有可见高度 */
+  flex: 1 1 0;
+  min-height: 200px;
   border-radius: 16px;
   border: 1px solid #e2e8f0;
   background: #fff;
   overflow: hidden;
-  /* 使用 Flexbox 替代 Grid，避免子元素数量与行数不匹配的问题 */
+  /* 内部使用 Flexbox 布局 */
   display: flex;
   flex-direction: column;
 }
@@ -1406,16 +1411,14 @@ const confirmTest = async (status: number) => {
 
 .runner-empty {
   /* Flexbox 子元素属性：占据整个 runner 空间 */
-  flex: 1;
-  min-height: 200px;
-  border-radius: 16px;
-  border: 1px dashed #cbd5e1;
-  background: #fff;
+  flex: 1 1 0;
+  min-height: 100px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   color: #64748b;
+  padding: 20px;
 }
 
 .empty-title {
@@ -1431,6 +1434,7 @@ const confirmTest = async (status: number) => {
 
 .work-splitter {
   height: 12px;
+  flex-shrink: 0;
   cursor: row-resize;
   display: flex;
   align-items: center;
@@ -1466,6 +1470,8 @@ const confirmTest = async (status: number) => {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
+  /* 使用 CSS 变量控制高度 */
+  height: var(--drawerHeight);
 }
 
 .bottom-drawer.collapsed {
@@ -1632,4 +1638,59 @@ const confirmTest = async (status: number) => {
   color: #dc2626;
 }
 .btn-danger-soft:hover { background: #fee2e2; }
+
+/* 底部操作区 */
+.panel-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  background: #fff;
+  flex-shrink: 0;
+}
+
+.footer-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.server-info-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: #f8fafc;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  font-size: 0.85rem;
+  color: #475569;
+}
+
+.server-name {
+  font-weight: 600;
+}
+
+.server-version {
+  color: #94a3b8;
+}
+
+.status-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.status-indicator.online { background: #10b981; }
+
+.footer-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.action-group {
+  display: flex;
+  gap: 10px;
+}
 </style>
