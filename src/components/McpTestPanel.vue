@@ -78,20 +78,21 @@
         </div>
       </div>
 
-      <!-- 右侧工作台 (上下布局) -->
+      <!-- 右侧工作台 (Grid 布局) -->
       <div class="tool-workbench" v-if="selectedTool">
-        <!-- 上半部分：配置与执行 (Flex 1) -->
-        <div class="workbench-top custom-scrollbar">
-          <div class="tool-header">
-            <div class="tool-title-row">
-              <h3>{{ selectedTool.name }}</h3>
-              <span class="tag">Function</span>
-            </div>
-            <p class="tool-description" v-if="selectedTool.description">
-              {{ selectedTool.description }}
-            </p>
+        <!-- 1. 顶部标题 -->
+        <div class="tool-header">
+          <div class="tool-title-row">
+            <h3>{{ selectedTool.name }}</h3>
+            <span class="tag">Function</span>
           </div>
+          <p class="tool-description" v-if="selectedTool.description">
+            {{ selectedTool.description }}
+          </p>
+        </div>
 
+        <!-- 2. 参数配置 (占据所有剩余空间) -->
+        <div class="workbench-top custom-scrollbar">
           <div class="tool-config">
             <div class="section-header">
               <h4>参数配置</h4>
@@ -106,7 +107,7 @@
           </div>
         </div>
 
-        <!-- 中间：操作栏 (固定在上下分栏之间) -->
+        <!-- 3. 操作栏 (固定位置) -->
         <div class="action-bar-divider">
             <button 
             class="btn btn-primary btn-block btn-md btn-glow"
@@ -120,7 +121,7 @@
           </button>
         </div>
 
-        <!-- 下半部分：终端输出 (Flex 0 0 auto) -->
+        <!-- 4. 终端输出 (固定高度) -->
         <div class="workbench-bottom">
           <div class="terminal-header">
             <div class="terminal-controls">
@@ -655,29 +656,20 @@ const confirmTest = async (status: number) => {
   text-overflow: ellipsis;
 }
 
-/* 工作台布局 (上下结构) - 切换为 Grid 布局 */
+/* 工作台布局 (Grid 核心) */
 .tool-workbench {
   flex: 1;
   display: grid;
-  grid-template-rows: auto 1fr auto auto; /* 头部 | 参数配置(剩余全部) | 操作栏 | 终端 */
+  grid-template-rows: auto 1fr auto 250px; /* 强制行高：头部 | 参数(剩余) | 操作栏 | 终端 */
   overflow: hidden;
   min-width: 0;
   height: 100%;
 }
 
-/* 上部：配置区域 */
-.workbench-top {
-  /* 移除 flex 相关属性，让 grid 控制高度 */
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto; /* 内部滚动 */
-  background: #fff;
-  min-height: 0;
-}
-
+/* 1. 顶部标题 */
 .tool-header {
   padding: 20px 24px 12px;
-  flex-shrink: 0;
+  background: #fff;
 }
 
 .tool-title-row {
@@ -712,9 +704,16 @@ const confirmTest = async (status: number) => {
   max-width: 800px;
 }
 
-.tool-config {
-  flex: 1;
+/* 2. 参数配置 (1fr) */
+.workbench-top {
+  overflow-y: auto; /* 独立滚动 */
+  background: #fff;
   padding: 0 24px 20px;
+  min-height: 0;
+}
+
+.tool-config {
+  height: 100%;
 }
 
 .section-header {
@@ -738,27 +737,27 @@ const confirmTest = async (status: number) => {
 }
 
 .params-container {
-  max-width: 1000px; /* 限制最大宽度，保持阅读舒适度 */
+  max-width: 1000px;
+  padding-bottom: 20px;
 }
 
-/* 中间操作栏 */
+/* 3. 操作栏 (auto) */
 .action-bar-divider {
   padding: 12px 24px;
   background: #fff;
   border-top: 1px solid #f1f5f9;
   border-bottom: 1px solid #e2e8f0;
-  /* 移除 z-index，回归文档流 */
 }
 
-/* 下部：终端区域 */
+/* 4. 终端区域 (250px) */
 .workbench-bottom {
-  height: 250px; /* 固定高度 */
+  /* 高度由 grid-template-rows 控制 */
   display: flex;
   flex-direction: column;
   background: #1e293b;
   color: #e2e8f0;
   border-top: 1px solid #334155;
-  /* 移除 flex-shrink，由 grid 控制 */
+  overflow: hidden;
 }
 
 /* 终端样式 */
@@ -847,8 +846,8 @@ const confirmTest = async (status: number) => {
   padding: 12px 24px;
   border-top: 1px solid var(--border);
   background: #fff;
-  flex-shrink: 0; /* 关键：防止被压缩 */
-  z-index: 20; /* 确保在最上层 */
+  flex-shrink: 0;
+  z-index: 20;
 }
 
 .server-info-pill {
