@@ -345,10 +345,10 @@ const confirmTest = async (status: number) => {
   
   display: flex;
   flex-direction: column;
-  height: 90vh;
-  max-height: 900px;
-  width: 95vw;
-  max-width: 1400px;
+  height: 95vh;
+  max-height: none;
+  width: 98vw;
+  max-width: none;
   background: #ffffff;
   border-radius: 16px;
   overflow: hidden;
@@ -662,6 +662,7 @@ const confirmTest = async (status: number) => {
   flex-direction: column;
   overflow: hidden;
   min-width: 0; /* 防止flex子元素溢出 */
+  height: 100%; /* 确保填满父容器 */
 }
 
 /* 上部：配置区域 */
@@ -752,14 +753,15 @@ const confirmTest = async (status: number) => {
 
 /* 下部：终端区域 */
 .workbench-bottom {
-  height: 35%; /* 使用百分比高度 */
-  min-height: 180px;
-  max-height: 500px;
+  height: 250px; /* 固定高度，不再使用百分比 */
+  min-height: 150px;
+  max-height: 50%; /* 防止在大屏幕上过高，但在小屏幕上至少保证固定高度 */
   display: flex;
   flex-direction: column;
   background: #1e293b;
   color: #e2e8f0;
-  flex-shrink: 0;
+  flex-shrink: 0; /* 确保不被挤压 */
+  border-top: 1px solid #334155;
 }
 
 /* 终端样式 */
@@ -845,10 +847,11 @@ const confirmTest = async (status: number) => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px 24px;
+  padding: 12px 24px;
   border-top: 1px solid var(--border);
   background: #fff;
-  flex-shrink: 0;
+  flex-shrink: 0; /* 关键：防止被压缩 */
+  z-index: 20; /* 确保在最上层 */
 }
 
 .server-info-pill {
