@@ -675,5 +675,8 @@ onMounted(() => {
   border-radius: 16px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
   overflow: hidden;
+  /* 确保子组件正确填充 */
+  display: flex;
+  flex-direction: column;
 }
 </style>

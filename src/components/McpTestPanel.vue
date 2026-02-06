@@ -881,9 +881,8 @@ const confirmTest = async (status: number) => {
   display: flex;
   flex-direction: column;
   overflow-y: auto;
-  /* 确保 sidebar 铺满父容器高度 */
-  height: 100%;
   min-height: 0;
+  /* 在 flex 布局中会自动拉伸高度 */
 }
 
 .connection-card {
@@ -1086,7 +1085,7 @@ const confirmTest = async (status: number) => {
    右侧工作区
    ============================================ */
 .work-area {
-  flex: 1 1 0;
+  flex: 1;
   min-width: 0;
   min-height: 0;
   display: flex;
@@ -1099,7 +1098,7 @@ const confirmTest = async (status: number) => {
 
 /* 两列网格布局 */
 .tools-grid {
-  flex: 1 1 0;
+  flex: 1;
   display: grid;
   grid-template-columns: 300px 1fr;
   gap: 16px;
