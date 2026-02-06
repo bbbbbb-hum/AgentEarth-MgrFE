@@ -52,7 +52,7 @@
 
     <!-- 主内容区 -->
     <div class="main-content" v-else>
-      <!-- 左侧工具列表 -->
+      <!-- 左侧工具列表 (侧边栏) -->
       <div class="tools-sidebar">
         <div class="sidebar-header">
           <span class="sidebar-title">可用工具</span>
@@ -74,15 +74,14 @@
               <span class="tool-name">{{ tool.name }}</span>
               <span class="tool-summary" v-if="tool.description">{{ tool.description }}</span>
             </div>
-            <div class="chevron-right">›</div>
           </div>
         </div>
       </div>
 
-      <!-- 右侧工作台 (Split View) -->
+      <!-- 右侧工作台 (上下布局) -->
       <div class="tool-workbench" v-if="selectedTool">
-        <!-- 左半部分：输入与操作 -->
-        <div class="workbench-input custom-scrollbar">
+        <!-- 上半部分：配置与执行 (Flex 1) -->
+        <div class="workbench-top custom-scrollbar">
           <div class="tool-header">
             <div class="tool-title-row">
               <h3>{{ selectedTool.name }}</h3>
@@ -106,8 +105,9 @@
             </div>
           </div>
 
-          <div class="action-footer">
-            <button 
+          <!-- 底部固定操作栏 -->
+          <div class="action-bar-sticky">
+             <button 
               class="btn btn-primary btn-block btn-lg btn-glow"
               :class="{ 'is-loading': calling }"
               :disabled="calling"
@@ -120,8 +120,8 @@
           </div>
         </div>
 
-        <!-- 右半部分：输出终端 -->
-        <div class="workbench-output">
+        <!-- 下半部分：终端输出 (固定高度/可伸缩) -->
+        <div class="workbench-bottom">
           <div class="terminal-header">
             <div class="terminal-controls">
               <span class="dot red"></span>
@@ -157,7 +157,7 @@
             <div v-else class="terminal-placeholder">
               <div class="placeholder-visual">⌨️</div>
               <p>准备就绪</p>
-              <span class="sub-text">配置参数并运行以查看结果</span>
+              <span class="sub-text">在上方配置参数并运行以查看结果</span>
             </div>
           </div>
         </div>
@@ -173,7 +173,7 @@
       </div>
     </div>
 
-    <!-- 底部操作区 -->
+    <!-- 底部操作区 (全局) -->
     <div class="panel-footer" v-if="connectionStatus === 'connected'">
       <div class="footer-left">
         <div class="server-info-pill" v-if="connectResult?.server_info">
@@ -183,7 +183,7 @@
         </div>
       </div>
       <div class="footer-actions">
-        <button class="btn btn-text" @click="$emit('close')">稍后处理</button>
+        <button class="btn btn-text" @click="$emit('close')">关闭</button>
         <div class="action-group">
           <button class="btn btn-danger-soft" @click="confirmTest(-1)">❌ 测试失败</button>
           <button class="btn btn-success-soft" @click="confirmTest(1)">✅ 测试通过</button>
@@ -346,11 +346,11 @@ const confirmTest = async (status: number) => {
   display: flex;
   flex-direction: column;
   height: 90vh;
-  max-height: 850px;
-  width: 90vw;
-  max-width: 1280px;
+  max-height: 900px;
+  width: 95vw;
+  max-width: 1400px;
   background: #ffffff;
-  border-radius: 20px;
+  border-radius: 16px;
   overflow: hidden;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0,0,0,0.02);
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
@@ -359,15 +359,15 @@ const confirmTest = async (status: number) => {
 
 /* 自定义滚动条 */
 .custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 .custom-scrollbar::-webkit-scrollbar-track {
   background: transparent;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
   background: #cbd5e1;
-  border-radius: 3px;
+  border-radius: 4px;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
@@ -381,6 +381,7 @@ const confirmTest = async (status: number) => {
   padding: 16px 24px;
   background: #fff;
   border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
 }
 
 .header-left {
@@ -546,19 +547,21 @@ const confirmTest = async (status: number) => {
 
 /* 侧边栏 */
 .tools-sidebar {
-  width: 280px;
+  width: 260px;
   background: #fff;
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
+  flex-shrink: 0;
 }
 
 .sidebar-header {
-  padding: 20px 24px;
+  padding: 16px 20px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   border-bottom: 1px solid #f1f5f9;
+  flex-shrink: 0;
 }
 
 .sidebar-title {
@@ -581,16 +584,16 @@ const confirmTest = async (status: number) => {
 .tools-list {
   flex: 1;
   overflow-y: auto;
-  padding: 16px;
+  padding: 12px;
 }
 
 .tool-item {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
-  padding: 12px 16px;
-  margin-bottom: 8px;
-  border-radius: 12px;
+  padding: 10px;
+  margin-bottom: 4px;
+  border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   border: 1px solid transparent;
@@ -598,7 +601,6 @@ const confirmTest = async (status: number) => {
 
 .tool-item:hover {
   background: #f8fafc;
-  transform: translateY(-1px);
 }
 
 .tool-item.active {
@@ -607,23 +609,22 @@ const confirmTest = async (status: number) => {
 }
 
 .tool-icon-wrapper {
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   background: #fff;
   border: 1px solid #e2e8f0;
-  border-radius: 10px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.1rem;
-  transition: all 0.2s;
+  font-size: 1rem;
+  flex-shrink: 0;
 }
 
 .tool-item.active .tool-icon-wrapper {
   background: #3b82f6;
   border-color: #3b82f6;
   color: #fff;
-  box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.2);
 }
 
 .tool-info {
@@ -635,8 +636,10 @@ const confirmTest = async (status: number) => {
   display: block;
   font-weight: 600;
   color: #334155;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   margin-bottom: 2px;
+  line-height: 1.4;
+  word-break: break-all;
 }
 
 .tool-item.active .tool-name {
@@ -652,70 +655,52 @@ const confirmTest = async (status: number) => {
   text-overflow: ellipsis;
 }
 
-.chevron-right {
-  color: #cbd5e1;
-  font-size: 1.2rem;
-  font-weight: 300;
-}
-
-.tool-item.active .chevron-right {
-  color: #3b82f6;
-}
-
-/* 工作台布局 */
+/* 工作台布局 (上下结构) */
 .tool-workbench {
   flex: 1;
   display: flex;
+  flex-direction: column;
   overflow: hidden;
+  min-width: 0; /* 防止flex子元素溢出 */
 }
 
-.workbench-input {
+/* 上部：配置区域 */
+.workbench-top {
   flex: 1;
-  min-width: 400px;
-  max-width: 600px;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid var(--border);
+  overflow-y: auto;
   background: #fff;
+  min-height: 300px;
 }
 
-.workbench-output {
-  flex: 1.5;
-  min-width: 400px;
-  background: #1e293b;
-  color: #e2e8f0;
-  display: flex;
-  flex-direction: column;
-}
-
-/* 输入区域 */
 .tool-header {
-  padding: 32px 32px 20px;
+  padding: 24px 32px 16px;
+  flex-shrink: 0;
 }
 
 .tool-title-row {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 .tool-title-row h3 {
   margin: 0;
-  font-size: 1.5rem;
+  font-size: 1.4rem;
   font-weight: 700;
   color: #0f172a;
 }
 
 .tag {
-  padding: 4px 10px;
+  padding: 4px 8px;
   background: #f1f5f9;
   color: #64748b;
-  border-radius: 6px;
+  border-radius: 4px;
   font-size: 0.7rem;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
 }
 
 .tool-description {
@@ -723,19 +708,19 @@ const confirmTest = async (status: number) => {
   color: #475569;
   line-height: 1.6;
   margin: 0;
+  max-width: 800px;
 }
 
 .tool-config {
   flex: 1;
-  padding: 0 32px 32px;
-  overflow-y: auto;
+  padding: 0 32px 24px;
 }
 
 .section-header {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin: 24px 0 20px;
+  margin: 20px 0 16px;
 }
 
 .section-header h4 {
@@ -751,11 +736,32 @@ const confirmTest = async (status: number) => {
   background: #f1f5f9;
 }
 
-.action-footer {
-  padding: 24px 32px;
-  border-top: 1px solid #f1f5f9;
+.params-container {
+  max-width: 1000px; /* 限制最大宽度，保持阅读舒适度 */
+}
+
+/* 底部固定操作栏 */
+.action-bar-sticky {
+  padding: 16px 32px;
   background: #fff;
-  z-index: 5;
+  border-top: 1px solid #f1f5f9;
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  box-shadow: 0 -4px 12px rgba(0,0,0,0.02);
+}
+
+/* 下部：终端区域 */
+.workbench-bottom {
+  height: 320px; /* 固定高度，或者使用 flex-basis */
+  min-height: 200px;
+  max-height: 60%;
+  display: flex;
+  flex-direction: column;
+  background: #1e293b;
+  color: #e2e8f0;
+  border-top: 1px solid #334155;
+  flex-shrink: 0;
 }
 
 /* 终端样式 */
@@ -763,9 +769,10 @@ const confirmTest = async (status: number) => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 20px;
+  padding: 10px 20px;
   background: #0f172a;
   border-bottom: 1px solid #334155;
+  flex-shrink: 0;
 }
 
 .terminal-controls {
@@ -790,7 +797,7 @@ const confirmTest = async (status: number) => {
 .terminal-body {
   flex: 1;
   overflow-y: auto;
-  padding: 24px;
+  padding: 20px;
   font-family: 'Fira Code', monospace;
   font-size: 0.9rem;
 }
@@ -798,7 +805,7 @@ const confirmTest = async (status: number) => {
 .result-line {
   display: flex;
   gap: 10px;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
   opacity: 0.7;
   font-size: 0.8rem;
 }
@@ -830,8 +837,8 @@ const confirmTest = async (status: number) => {
 }
 
 .placeholder-visual {
-  font-size: 4rem;
-  margin-bottom: 16px;
+  font-size: 3rem;
+  margin-bottom: 12px;
   opacity: 0.5;
 }
 
@@ -843,6 +850,7 @@ const confirmTest = async (status: number) => {
   padding: 16px 24px;
   border-top: 1px solid var(--border);
   background: #fff;
+  flex-shrink: 0;
 }
 
 .server-info-pill {
@@ -942,8 +950,8 @@ const confirmTest = async (status: number) => {
 }
 .btn-danger-soft:hover { background: #fee2e2; }
 
-.btn-block { width: 100%; padding: 14px; font-size: 1rem; }
-.btn-lg { padding: 14px 32px; font-size: 1.05rem; }
+.btn-block { width: 100%; padding: 12px; font-size: 1rem; }
+.btn-lg { padding: 12px 32px; font-size: 1rem; }
 
 .btn-icon-sm {
   width: 28px; height: 28px;
