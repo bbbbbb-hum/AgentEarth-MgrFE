@@ -277,7 +277,8 @@ const drawerHeight = ref(280);
 const workAreaEl = ref<HTMLDivElement | null>(null);
 const runnerEl = ref<HTMLDivElement | null>(null);
 const runnerHeaderEl = ref<HTMLDivElement | null>(null);
-const resultHeight = ref(320);
+// 默认结果区域高度，设置较小值确保参数区域有足够空间
+const resultHeight = ref(200);
 
 const history = ref<HistoryEntry[]>([]);
 const events = ref<NotifyEntry[]>([]);
@@ -447,11 +448,12 @@ const startResize = (e: PointerEvent) => {
 };
 
 const clampResultHeight = (value: number) => {
-  const minResult = 160;
-  const minParams = 220;
+  const minResult = 120;  // 结果区域最小高度
+  const minParams = 120;  // 参数区域最小高度
   const splitter = 12;
   const header = runnerHeaderEl.value?.clientHeight ?? 60;
-  const container = runnerEl.value?.clientHeight ?? 600;
+  const container = runnerEl.value?.clientHeight ?? 500;
+  // 最大结果高度 = 容器高度 - header - splitter - 参数最小高度
   const maxResult = Math.max(minResult, container - header - splitter - minParams);
   return Math.max(minResult, Math.min(maxResult, value));
 };
@@ -459,6 +461,7 @@ const clampResultHeight = (value: number) => {
 const onResultPointerMove = (e: PointerEvent) => {
   if (!resizingResult.value) return;
   if (activeResultPointerId.value !== null && e.pointerId !== activeResultPointerId.value) return;
+  // 向上拖动 (clientY 变小) 时，结果区域变大
   const dy = resultStartY.value - e.clientY;
   const next = resultStartHeight.value + dy;
   resultHeight.value = clampResultHeight(next);
@@ -901,6 +904,8 @@ const confirmTest = async (status: number) => {
   gap: 12px;
   padding: 12px;
   overflow: hidden;
+  /* 确保 sidebar 完整填满父容器高度 */
+  height: 100%;
 }
 
 .card {
@@ -908,6 +913,8 @@ const confirmTest = async (status: number) => {
   border: 1px solid #e2e8f0;
   border-radius: 14px;
   padding: 12px;
+  /* 连接卡片不收缩 */
+  flex-shrink: 0;
 }
 
 .tools-card {
@@ -915,6 +922,8 @@ const confirmTest = async (status: number) => {
   min-height: 0;
   display: flex;
   flex-direction: column;
+  /* 工具卡片占据剩余空间并允许内部滚动 */
+  overflow: hidden;
 }
 
 .card-title-row {
@@ -1082,7 +1091,8 @@ const confirmTest = async (status: number) => {
   background: #fff;
   overflow: hidden;
   display: grid;
-  grid-template-rows: auto 1fr 12px var(--resultHeight);
+  /* 使用 minmax 确保参数区域至少有 120px，结果区域至少有 120px */
+  grid-template-rows: auto minmax(120px, 1fr) 12px minmax(120px, var(--resultHeight));
 }
 
 .runner.result-collapsed {
@@ -1090,7 +1100,7 @@ const confirmTest = async (status: number) => {
 }
 
 .runner.params-collapsed {
-  grid-template-rows: auto 0px 0px var(--resultHeight);
+  grid-template-rows: auto 0px 0px 1fr;
 }
 
 .runner-header {
