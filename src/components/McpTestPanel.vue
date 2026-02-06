@@ -1,6 +1,5 @@
 <template>
   <div class="mcp-test-panel">
-    <!-- 头部 -->
     <div class="panel-header">
       <div class="header-left">
         <div class="icon-wrapper">
@@ -22,159 +21,136 @@
       </button>
     </div>
 
-    <!-- 连接前/连接失败状态 -->
-    <div class="connection-overlay" v-if="connectionStatus !== 'connected'">
-      <div class="connection-card">
-        <div class="status-visual" :class="connectionStatus">
-          <div class="pulse-ring" v-if="connectionStatus === 'connecting'"></div>
-          <span class="visual-icon" v-if="connectionStatus === 'connecting'">⏳</span>
-          <span class="visual-icon" v-else-if="connectionStatus === 'error'">⚠️</span>
-          <span class="visual-icon" v-else>🚀</span>
+    <div class="main-content">
+      <div class="sidebar">
+        <div class="card">
+          <div class="card-title-row">
+            <span class="card-title">连接</span>
+            <span class="pill" :class="connectionStatus">{{ statusText }}</span>
+          </div>
+          <div class="kv">
+            <span class="k">configId</span>
+            <span class="v">{{ configId }}</span>
+          </div>
+          <div class="kv" v-if="connectResult?.server_info">
+            <span class="k">Server</span>
+            <span class="v">{{ connectResult.server_info.name }} v{{ connectResult.server_info.version }}</span>
+          </div>
+          <div class="err" v-if="connectionError">{{ connectionError }}</div>
+          <div class="btn-row">
+            <button class="btn btn-primary" :disabled="connecting" @click="connect">
+              {{ connecting ? '连接中...' : (connectionStatus === 'connected' ? '重连' : '连接') }}
+            </button>
+            <button class="btn btn-light" :disabled="connecting && connectionStatus !== 'connected'" @click="disconnect">
+              断开
+            </button>
+          </div>
         </div>
-        <h3>{{ connectionStatus === 'connecting' ? '正在建立连接...' : (connectionStatus === 'error' ? '连接中断' : '准备就绪') }}</h3>
-        <p class="status-desc" v-if="!connectionError">
-          {{ connectionStatus === 'connecting' ? '请稍候，正在尝试连接到 MCP 服务' : '点击下方按钮开始测试连接' }}
-        </p>
-        <div class="error-box" v-if="connectionError">
-          <span class="error-icon">❌</span>
-          <span class="error-msg">{{ connectionError }}</span>
-        </div>
-        
-        <button 
-          class="btn btn-primary btn-lg btn-glow"
-          :disabled="connecting"
-          @click="connect"
-        >
-          {{ connecting ? '连接中...' : '开始连接' }}
-        </button>
-      </div>
-    </div>
 
-    <!-- 主内容区 -->
-    <div class="main-content" v-else>
-      <!-- 左侧工具列表 (侧边栏) -->
-      <div class="tools-sidebar">
-        <div class="sidebar-header">
-          <span class="sidebar-title">可用工具</span>
-          <span class="tool-count-badge">{{ tools.length }}</span>
-        </div>
-        
-        <div class="tools-list custom-scrollbar">
-          <div 
-            v-for="tool in tools" 
-            :key="tool.name"
-            class="tool-item"
-            :class="{ active: selectedTool?.name === tool.name }"
-            @click="selectTool(tool)"
-          >
-            <div class="tool-icon-wrapper">
-              <span class="tool-icon">🛠️</span>
-            </div>
-            <div class="tool-info">
-              <span class="tool-name">{{ tool.name }}</span>
-              <span class="tool-summary" v-if="tool.description">{{ tool.description }}</span>
-            </div>
+        <div class="card tools-card">
+          <div class="card-title-row">
+            <span class="card-title">工具</span>
+            <span class="count">{{ filteredTools.length }}</span>
+          </div>
+          <div class="search">
+            <input v-model="toolQuery" class="search-input" type="text" placeholder="搜索工具..." />
+          </div>
+          <div class="tools-list custom-scrollbar">
+            <button
+              v-for="tool in filteredTools"
+              :key="tool.name"
+              type="button"
+              class="tool-item"
+              :class="{ active: selectedTool?.name === tool.name }"
+              :disabled="connectionStatus !== 'connected'"
+              @click="selectTool(tool)"
+            >
+              <div class="tool-icon-wrapper">
+                <span class="tool-icon">🛠️</span>
+              </div>
+              <div class="tool-info">
+                <div class="tool-name">{{ tool.name }}</div>
+                <div class="tool-summary" v-if="tool.description">{{ tool.description }}</div>
+              </div>
+            </button>
           </div>
         </div>
       </div>
 
-      <!-- 右侧工作台 (Grid 布局) -->
-      <div class="tool-workbench" v-if="selectedTool">
-        <!-- 1. 顶部标题 -->
-        <div class="tool-header">
-          <div class="tool-title-row">
-            <h3>{{ selectedTool.name }}</h3>
-            <span class="tag">Function</span>
-          </div>
-          <p class="tool-description" v-if="selectedTool.description">
-            {{ selectedTool.description }}
-          </p>
-        </div>
-
-        <!-- 2. 参数配置 (占据所有剩余空间) -->
-        <div class="workbench-top custom-scrollbar">
-          <div class="tool-config">
-            <div class="section-header">
-              <h4>参数配置</h4>
-              <span class="section-line"></span>
+      <div class="work-area">
+        <div class="runner" v-if="selectedTool">
+          <div class="runner-header">
+            <div class="runner-title">
+              <div class="tool-title">{{ selectedTool.name }}</div>
+              <div class="tool-desc" v-if="selectedTool.description">{{ selectedTool.description }}</div>
             </div>
-            <div class="params-container">
-              <SchemaForm 
-                :schema="selectedTool.inputSchema" 
-                v-model="toolArguments"
-              />
-            </div>
-          </div>
-        </div>
-
-        <!-- 3. 操作栏 (固定位置) -->
-        <div class="action-bar-divider">
-            <button 
-            class="btn btn-primary btn-block btn-md btn-glow"
-            :class="{ 'is-loading': calling }"
-            :disabled="calling"
-            @click="executeTool"
-          >
-            <span class="icon" v-if="!calling">▶</span>
-            <span class="spinner" v-else></span>
-            {{ calling ? '执行中...' : '运行工具' }}
-          </button>
-        </div>
-
-        <!-- 4. 终端输出 (固定高度) -->
-        <div class="workbench-bottom">
-          <div class="terminal-header">
-            <div class="terminal-controls">
-              <span class="dot red"></span>
-              <span class="dot yellow"></span>
-              <span class="dot green"></span>
-            </div>
-            <span class="terminal-title">Terminal Output</span>
-            <div class="terminal-actions">
-              <span class="duration-badge" v-if="callResult?.duration_ms">
-                ⏱ {{ callResult.duration_ms }}ms
-              </span>
-              <button class="btn-icon-sm" @click="copyResult" title="复制结果" v-if="callResult">
-                📋
+            <div class="runner-actions">
+              <button class="btn btn-light" type="button" @click="copyInput" :disabled="!selectedTool">复制输入</button>
+              <button class="btn btn-light" type="button" @click="clearInput" :disabled="!selectedTool">清空参数</button>
+              <button class="btn btn-primary" type="button" @click="executeTool" :disabled="calling || connectionStatus !== 'connected'">
+                {{ calling ? '运行中...' : '运行工具' }}
               </button>
             </div>
           </div>
-          
-          <div class="terminal-body custom-scrollbar">
-            <div v-if="callResult" class="result-content" :class="{ error: callResult.is_error || !callResult.success }">
-              <div class="result-line timestamp">
-                <span class="prompt">➜</span> 
-                <span class="cmd">executed {{ selectedTool.name }}</span>
-                <span class="time">@ {{ new Date().toLocaleTimeString() }}</span>
+
+          <div class="runner-body custom-scrollbar">
+            <div class="section-title">参数</div>
+            <SchemaForm :schema="selectedTool.inputSchema" v-model="toolArguments" />
+          </div>
+
+          <div class="runner-result">
+            <div class="result-header">
+              <div class="result-left">
+                <span class="section-title">结果</span>
+                <span v-if="callResult" class="pill" :class="callResult.success && !callResult.is_error ? 'success' : 'error'">
+                  {{ callResult.success && !callResult.is_error ? '成功' : '失败' }}
+                </span>
+                <span v-if="callResult?.duration_ms" class="pill time">{{ callResult.duration_ms }}ms</span>
               </div>
-              <pre class="code-block">{{ formatResult(callResult) }}</pre>
+              <div class="result-right">
+                <button class="btn btn-light btn-sm" type="button" @click="resultView = 'structured'" :class="{ active: resultView === 'structured' }">结构化</button>
+                <button class="btn btn-light btn-sm" type="button" @click="resultView = 'raw'" :class="{ active: resultView === 'raw' }">原始JSON</button>
+                <button class="btn btn-light btn-sm" type="button" @click="copyResult" :disabled="!callResult">复制结果</button>
+                <button class="btn btn-light btn-sm" type="button" @click="clearResult" :disabled="!callResult">清空</button>
+              </div>
             </div>
-            
-            <div v-else-if="calling" class="terminal-placeholder calling">
-              <div class="spinner-large"></div>
-              <p>正在等待服务响应...</p>
-            </div>
-            
-            <div v-else class="terminal-placeholder">
-              <div class="placeholder-visual">⌨️</div>
-              <p>准备就绪</p>
-              <span class="sub-text">在上方配置参数并运行以查看结果</span>
+            <div class="result-body custom-scrollbar">
+              <div v-if="!callResult && !calling" class="placeholder">运行工具后将在此处显示返回结果</div>
+              <div v-else-if="calling" class="placeholder">正在等待服务响应...</div>
+              <pre v-else class="code">
+{{ resultView === 'structured' ? formatStructured(callResult) : formatJson(callResult) }}
+              </pre>
             </div>
           </div>
         </div>
-      </div>
 
-      <!-- 未选择工具提示 -->
-      <div class="empty-selection" v-else>
-        <div class="empty-content">
-          <div class="empty-illustration">👈</div>
-          <h3>选择一个工具</h3>
-          <p>从左侧列表中选择一个工具以开始测试</p>
+        <div class="runner-empty" v-else>
+          <div class="empty-title">从左侧选择一个工具</div>
+          <div class="empty-sub">连接后可查看工具列表、填写参数并运行</div>
+        </div>
+
+        <div class="bottom-drawer" :class="{ collapsed: bottomCollapsed }">
+          <div class="drawer-header">
+            <div class="tabs">
+              <button type="button" class="tab" :class="{ active: bottomTab === 'history' }" @click="bottomTab = 'history'">历史</button>
+              <button type="button" class="tab" :class="{ active: bottomTab === 'events' }" @click="bottomTab = 'events'">通知</button>
+            </div>
+            <div class="drawer-actions">
+              <button v-if="bottomTab === 'history'" type="button" class="btn btn-light btn-sm" @click="clearHistory" :disabled="history.length === 0">清空</button>
+              <button v-else type="button" class="btn btn-light btn-sm" @click="clearEvents" :disabled="events.length === 0">清空</button>
+              <button type="button" class="btn btn-light btn-sm" @click="bottomCollapsed = !bottomCollapsed">
+                {{ bottomCollapsed ? '展开' : '收起' }}
+              </button>
+            </div>
+          </div>
+          <div v-if="!bottomCollapsed" class="drawer-body">
+            <McpHistoryPanel v-if="bottomTab === 'history'" :entries="history" @select="applyHistory" />
+            <McpNotificationsPanel v-else :entries="events" />
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- 底部操作区 (全局) -->
     <div class="panel-footer" v-if="connectionStatus === 'connected'">
       <div class="footer-left">
         <div class="server-info-pill" v-if="connectResult?.server_info">
@@ -197,6 +173,8 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import SchemaForm from './SchemaForm.vue';
+import McpHistoryPanel, { type HistoryEntry } from './McpHistoryPanel.vue';
+import McpNotificationsPanel, { type NotifyEntry, type NotifyLevel } from './McpNotificationsPanel.vue';
 import { testConnect, testCall, testConfirm } from '../api/mcpTest';
 import type { McpTool, ConnectResponse, CallResponse } from '../types/mcp';
 
@@ -219,6 +197,15 @@ const tools = ref<McpTool[]>([]);
 const selectedTool = ref<McpTool | null>(null);
 const toolArguments = ref<Record<string, any>>({});
 const callResult = ref<CallResponse | null>(null);
+const resultView = ref<'structured' | 'raw'>('structured');
+const toolQuery = ref('');
+
+const bottomTab = ref<'history' | 'events'>('history');
+const bottomCollapsed = ref(true);
+
+const history = ref<HistoryEntry[]>([]);
+const events = ref<NotifyEntry[]>([]);
+const historySeq = ref(0);
 
 // 计算属性
 const connectionStatus = computed(() => {
@@ -237,6 +224,43 @@ const statusText = computed(() => {
   }
 });
 
+const filteredTools = computed(() => {
+  const q = toolQuery.value.trim().toLowerCase();
+  if (!q) return tools.value;
+  return tools.value.filter(t => {
+    const n = (t.name || '').toLowerCase();
+    const d = (t.description || '').toLowerCase();
+    return n.includes(q) || d.includes(q);
+  });
+});
+
+const addEvent = (level: NotifyLevel, message: string, payload?: any) => {
+  const ts = Date.now();
+  events.value.unshift({
+    id: `${ts}-${Math.random().toString(16).slice(2)}`,
+    ts,
+    level,
+    message,
+    payload
+  });
+};
+
+const addHistory = (method: string, request: any, response: any, status: 'success' | 'error', duration_ms?: number, title?: string) => {
+  const ts = Date.now();
+  historySeq.value += 1;
+  history.value.unshift({
+    id: `${ts}-${Math.random().toString(16).slice(2)}`,
+    seq: historySeq.value,
+    ts,
+    method,
+    title,
+    status,
+    duration_ms,
+    request,
+    response
+  });
+};
+
 // 连接服务
 const connect = async () => {
   connecting.value = true;
@@ -252,14 +276,31 @@ const connect = async () => {
       if (tools.value.length > 0) {
         selectTool(tools.value[0]);
       }
+      addEvent('info', '连接成功', { server_info: response.data.server_info, tools_count: tools.value.length });
+      addHistory('initialize', { method: 'initialize', params: {} }, { server_info: response.data.server_info, wemcp_name: response.data.wemcp_name }, 'success', response.data.duration_ms);
+      addHistory('tools/list', { method: 'tools/list', params: {} }, { tools: tools.value }, 'success');
     } else {
       connectionError.value = response.data.error || response.message || '连接失败';
+      addEvent('error', '连接失败', { error: connectionError.value });
+      addHistory('initialize', { method: 'initialize', params: {} }, { error: connectionError.value }, 'error');
     }
   } catch (err: any) {
     connectionError.value = err.message || '网络错误';
+    addEvent('error', '网络错误', { error: connectionError.value });
+    addHistory('initialize', { method: 'initialize', params: {} }, { error: connectionError.value }, 'error');
   } finally {
     connecting.value = false;
   }
+};
+
+const disconnect = () => {
+  connectResult.value = null;
+  tools.value = [];
+  selectedTool.value = null;
+  toolArguments.value = {};
+  callResult.value = null;
+  connectionError.value = null;
+  addEvent('info', '已断开连接');
 };
 
 // 选择工具
@@ -267,6 +308,7 @@ const selectTool = (tool: McpTool) => {
   selectedTool.value = tool;
   toolArguments.value = {};
   callResult.value = null;
+  resultView.value = 'structured';
 };
 
 // 执行工具
@@ -284,21 +326,49 @@ const executeTool = async () => {
     );
     
     callResult.value = response.data;
+    addEvent(
+      callResult.value.success && !callResult.value.is_error ? 'info' : 'warn',
+      `调用工具：${selectedTool.value.name}`,
+      { success: callResult.value.success, is_error: callResult.value.is_error, duration_ms: callResult.value.duration_ms }
+    );
+    addHistory(
+      'tools/call',
+      { method: 'tools/call', params: { name: selectedTool.value.name, arguments: toolArguments.value } },
+      callResult.value,
+      callResult.value.success && !callResult.value.is_error ? 'success' : 'error',
+      callResult.value.duration_ms,
+      selectedTool.value.name
+    );
   } catch (err: any) {
     callResult.value = {
       success: false,
       error: err.message || '调用失败'
     };
+    addEvent('error', `调用失败：${selectedTool.value.name}`, { error: callResult.value.error });
+    addHistory(
+      'tools/call',
+      { method: 'tools/call', params: { name: selectedTool.value.name, arguments: toolArguments.value } },
+      callResult.value,
+      'error',
+      undefined,
+      selectedTool.value.name
+    );
   } finally {
     calling.value = false;
   }
 };
 
-// 格式化结果
-const formatResult = (result: CallResponse): string => {
-  if (!result.success) {
-    return `Error: ${result.error}`;
+const formatJson = (value: any): string => {
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
   }
+};
+
+const formatStructured = (result: CallResponse | null): string => {
+  if (!result) return '';
+  if (!result.success || result.is_error) return `错误：${result.error || '未知错误'}`;
   try {
     return JSON.stringify(result.content, null, 2);
   } catch {
@@ -306,11 +376,48 @@ const formatResult = (result: CallResponse): string => {
   }
 };
 
-// 复制结果
-const copyResult = () => {
-  if (callResult.value) {
-    navigator.clipboard.writeText(formatResult(callResult.value));
+const copyResult = async () => {
+  if (!callResult.value) return;
+  try {
+    await navigator.clipboard.writeText(formatJson(callResult.value));
+  } catch {
+    // ignore
   }
+};
+
+const clearResult = () => {
+  callResult.value = null;
+};
+
+const copyInput = async () => {
+  try {
+    await navigator.clipboard.writeText(formatJson(toolArguments.value));
+  } catch {
+    // ignore
+  }
+};
+
+const clearInput = () => {
+  toolArguments.value = {};
+};
+
+const clearHistory = () => {
+  history.value = [];
+};
+
+const clearEvents = () => {
+  events.value = [];
+};
+
+const applyHistory = (entry: HistoryEntry) => {
+  if (entry.method !== 'tools/call') return;
+  const name = entry.request?.params?.name;
+  const args = entry.request?.params?.arguments;
+  const tool = tools.value.find(t => t.name === name) || null;
+  if (tool) selectedTool.value = tool;
+  toolArguments.value = args && typeof args === 'object' ? args : {};
+  callResult.value = entry.response as CallResponse;
+  bottomCollapsed.value = true;
 };
 
 // 确认测试结果
@@ -331,7 +438,6 @@ const confirmTest = async (status: number) => {
 </script>
 
 <style scoped>
-/* 全局变量模拟 */
 .mcp-test-panel {
   --primary: #3b82f6;
   --primary-dark: #2563eb;
@@ -356,7 +462,6 @@ const confirmTest = async (status: number) => {
   color: var(--text-main);
 }
 
-/* 自定义滚动条 */
 .custom-scrollbar::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -372,7 +477,6 @@ const confirmTest = async (status: number) => {
   background: #94a3b8;
 }
 
-/* 头部样式 */
 .panel-header {
   display: flex;
   justify-content: space-between;
@@ -461,82 +565,6 @@ const confirmTest = async (status: number) => {
   color: #64748b;
 }
 
-/* 连接前遮罩 */
-.connection-overlay {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(to bottom, #f8fafc, #fff);
-}
-
-.connection-card {
-  text-align: center;
-  padding: 48px;
-  background: #fff;
-  border-radius: 24px;
-  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.1);
-  max-width: 420px;
-  width: 100%;
-  border: 1px solid #f1f5f9;
-}
-
-.status-visual {
-  position: relative;
-  width: 96px;
-  height: 96px;
-  margin: 0 auto 24px;
-  background: #f1f5f9;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 3rem;
-}
-
-.status-visual.connecting { background: #eff6ff; }
-.status-visual.error { background: #fef2f2; }
-
-.pulse-ring {
-  position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
-  border-radius: 50%;
-  border: 4px solid #3b82f6;
-  opacity: 0;
-  animation: pulse-ring 2s infinite;
-}
-
-@keyframes pulse-ring {
-  0% { transform: scale(0.8); opacity: 0.5; }
-  100% { transform: scale(1.5); opacity: 0; }
-}
-
-.connection-card h3 {
-  margin: 0 0 12px;
-  font-size: 1.5rem;
-  color: #0f172a;
-}
-
-.status-desc {
-  color: #64748b;
-  margin-bottom: 32px;
-}
-
-.error-box {
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  color: #b91c1c;
-  padding: 12px 16px;
-  border-radius: 12px;
-  margin-bottom: 24px;
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  text-align: left;
-  font-size: 0.9rem;
-}
-
-/* 主布局 */
 .main-content {
   display: flex;
   flex: 1;
@@ -544,80 +572,154 @@ const confirmTest = async (status: number) => {
   background: #f8fafc;
 }
 
-/* 侧边栏 */
-.tools-sidebar {
-  width: 260px;
-  background: #fff;
+.sidebar {
+  width: 320px;
+  flex-shrink: 0;
   border-right: 1px solid var(--border);
+  background: #f8fafc;
   display: flex;
   flex-direction: column;
-  flex-shrink: 0;
+  gap: 12px;
+  padding: 12px;
+  overflow: hidden;
 }
 
-.sidebar-header {
-  padding: 16px 20px;
+.card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 12px;
+}
+
+.tools-card {
+  flex: 1;
+  min-height: 0;
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
+}
+
+.card-title-row {
+  display: flex;
   align-items: center;
-  border-bottom: 1px solid #f1f5f9;
-  flex-shrink: 0;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
 }
 
-.sidebar-title {
-  font-weight: 700;
-  color: #334155;
+.card-title {
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.count {
   font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  color: #64748b;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-weight: 700;
 }
 
-.tool-count-badge {
-  background: #f1f5f9;
-  color: #64748b;
-  padding: 2px 8px;
+.kv {
+  display: grid;
+  grid-template-columns: 76px 1fr;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 0.9rem;
+}
+
+.k {
+  color: #94a3b8;
+}
+
+.v {
+  color: #334155;
+  word-break: break-all;
+}
+
+.err {
+  margin: 8px 0;
+  padding: 8px 10px;
   border-radius: 10px;
-  font-size: 0.75rem;
-  font-weight: 600;
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.btn-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.search {
+  margin-bottom: 10px;
+}
+
+.search-input {
+  width: 100%;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 0.95rem;
+  outline: none;
+}
+
+.search-input:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.12);
 }
 
 .tools-list {
   flex: 1;
-  overflow-y: auto;
-  padding: 12px;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .tool-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
+  width: 100%;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  border-radius: 12px;
   padding: 10px;
-  margin-bottom: 4px;
-  border-radius: 8px;
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  border: 1px solid transparent;
+  display: grid;
+  grid-template-columns: 32px 1fr;
+  gap: 10px;
+  text-align: left;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
 
-.tool-item:hover {
+.tool-item:hover:not(:disabled) {
   background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.tool-item:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .tool-item.active {
+  border-color: #bfdbfe;
   background: #eff6ff;
-  border-color: #dbeafe;
 }
 
 .tool-icon-wrapper {
   width: 32px;
   height: 32px;
-  background: #fff;
+  border-radius: 10px;
   border: 1px solid #e2e8f0;
-  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1rem;
-  flex-shrink: 0;
 }
 
 .tool-item.active .tool-icon-wrapper {
@@ -626,48 +728,382 @@ const confirmTest = async (status: number) => {
   color: #fff;
 }
 
-.tool-info {
-  flex: 1;
-  overflow: hidden;
-}
-
 .tool-name {
-  display: block;
-  font-weight: 600;
-  color: #334155;
-  font-size: 0.85rem;
-  margin-bottom: 2px;
-  line-height: 1.4;
+  font-weight: 800;
+  color: #0f172a;
+  font-size: 0.95rem;
+  line-height: 1.3;
   word-break: break-all;
 }
 
-.tool-item.active .tool-name {
-  color: #2563eb;
-}
-
 .tool-summary {
-  display: block;
-  font-size: 0.75rem;
-  color: #94a3b8;
+  margin-top: 2px;
+  color: #64748b;
+  font-size: 0.82rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-/* 工作台布局 (Grid 核心) */
-.tool-workbench {
+.work-area {
   flex: 1;
-  display: grid;
-  grid-template-rows: auto 1fr auto 250px; /* 强制行高：头部 | 参数(剩余) | 操作栏 | 终端 */
-  overflow: hidden;
   min-width: 0;
-  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #f8fafc;
 }
 
-/* 1. 顶部标题 */
-.tool-header {
-  padding: 20px 24px 12px;
+.runner {
+  flex: 1;
+  min-height: 0;
+  margin: 12px 12px 0;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
   background: #fff;
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto 1fr 240px;
+}
+
+.runner-header {
+  padding: 14px 16px;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.runner-title {
+  min-width: 0;
+}
+
+.tool-title {
+  font-weight: 900;
+  color: #0f172a;
+  font-size: 1.1rem;
+}
+
+.tool-desc {
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  max-width: 900px;
+}
+
+.runner-actions {
+  display: flex;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.runner-body {
+  padding: 14px 16px 18px;
+  overflow: auto;
+  min-height: 0;
+}
+
+.section-title {
+  font-weight: 800;
+  color: #334155;
+  font-size: 0.9rem;
+  margin-bottom: 10px;
+}
+
+.runner-result {
+  border-top: 1px solid #e2e8f0;
+  background: #0b1220;
+  color: #e2e8f0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.result-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: #0f172a;
+  border-bottom: 1px solid #1f2a44;
+}
+
+.result-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.result-right {
+  display: flex;
+  gap: 8px;
+}
+
+.result-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px;
+}
+
+.placeholder {
+  color: rgba(226, 232, 240, 0.55);
+  font-size: 0.9rem;
+  padding: 10px 0;
+}
+
+.code {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.85rem;
+  line-height: 1.55;
+}
+
+.runner-empty {
+  flex: 1;
+  min-height: 0;
+  margin: 12px 12px 0;
+  border-radius: 16px;
+  border: 1px dashed #cbd5e1;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+}
+
+.empty-title {
+  font-weight: 900;
+  color: #0f172a;
+  font-size: 1.1rem;
+  margin-bottom: 6px;
+}
+
+.empty-sub {
+  font-size: 0.9rem;
+}
+
+.bottom-drawer {
+  margin: 12px;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  overflow: hidden;
+  flex-shrink: 0;
+  height: 280px;
+  display: flex;
+  flex-direction: column;
+}
+
+.bottom-drawer.collapsed {
+  height: 44px;
+}
+
+.drawer-header {
+  padding: 8px 10px;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: #f8fafc;
+}
+
+.tabs {
+  display: flex;
+  gap: 6px;
+}
+
+.tab {
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  border-radius: 10px;
+  padding: 6px 10px;
+  font-weight: 800;
+  font-size: 0.85rem;
+  cursor: pointer;
+  color: #334155;
+}
+
+.tab.active {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+}
+
+.drawer-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.drawer-body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  border: 1px solid #e2e8f0;
+  background: #f1f5f9;
+  color: #334155;
+}
+
+.pill.connected {
+  background: #dcfce7;
+  border-color: #bbf7d0;
+  color: #15803d;
+}
+
+.pill.connecting {
+  background: #fef3c7;
+  border-color: #fde68a;
+  color: #b45309;
+}
+
+.pill.error {
+  background: #fee2e2;
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+
+.pill.success {
+  background: rgba(16, 185, 129, 0.16);
+  border-color: rgba(16, 185, 129, 0.25);
+  color: #34d399;
+}
+
+.pill.time {
+  background: rgba(59, 130, 246, 0.14);
+  border-color: rgba(59, 130, 246, 0.22);
+  color: #93c5fd;
+}
+
+/* 按钮 */
+.btn {
+  padding: 10px 14px;
+  border: none;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  user-select: none;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: #fff;
+}
+
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.btn-light {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: #334155;
+}
+
+.btn-light:hover:not(:disabled) {
+  background: #e2e8f0;
+}
+
+.btn-sm {
+  padding: 8px 10px;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
+.btn-sm.active {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+}
+
+.btn-text {
+  background: transparent;
+  color: #64748b;
+  border: 1px solid transparent;
+}
+.btn-text:hover {
+  background: #f1f5f9;
+  color: #334155;
+}
+
+.btn-success-soft {
+  background: #ecfdf5;
+  color: #059669;
+}
+.btn-success-soft:hover { background: #d1fae5; }
+
+.btn-danger-soft {
+  background: #fef2f2;
+  color: #dc2626;
+}
+.btn-danger-soft:hover { background: #fee2e2; }
+
+/* 底部操作区 */
+.panel-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  background: #fff;
+  flex-shrink: 0;
+}
+
+.server-info-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: #f8fafc;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  font-size: 0.85rem;
+  color: #475569;
+}
+
+.status-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.status-indicator.online { background: #10b981; }
+
+.footer-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.action-group {
+  display: flex;
+  gap: 10px;
 }
 
 .tool-title-row {
