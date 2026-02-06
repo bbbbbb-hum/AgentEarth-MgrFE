@@ -862,7 +862,6 @@ const confirmTest = async (status: number) => {
   display: flex;
   flex: 1 1 0;
   min-height: 0;
-  height: 0; /* 配合 flex: 1 确保高度正确计算 */
   overflow: hidden;
   background: var(--background);
 }
@@ -1105,7 +1104,6 @@ const confirmTest = async (status: number) => {
   grid-template-columns: 300px 1fr;
   gap: 16px;
   min-height: 0;
-  height: 0; /* 配合 flex: 1 确保高度正确计算 */
   overflow: hidden;
 }
 
