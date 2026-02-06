@@ -1090,17 +1090,28 @@ const confirmTest = async (status: number) => {
   border: 1px solid #e2e8f0;
   background: #fff;
   overflow: hidden;
-  display: grid;
-  /* 使用 minmax 确保参数区域至少有 120px，结果区域至少有 120px */
-  grid-template-rows: auto minmax(120px, 1fr) 12px minmax(120px, var(--resultHeight));
+  /* 使用 Flexbox 替代 Grid，避免子元素数量与行数不匹配的问题 */
+  display: flex;
+  flex-direction: column;
 }
 
-.runner.result-collapsed {
-  grid-template-rows: auto 1fr 0px 44px;
+/* collapsed 状态样式 - 使用 Flexbox 方式控制 */
+.runner.result-collapsed .runner-result {
+  height: 44px;
+  min-height: 44px;
 }
 
-.runner.params-collapsed {
-  grid-template-rows: auto 0px 0px 1fr;
+.runner.params-collapsed .runner-body {
+  display: none;
+}
+
+.runner.params-collapsed .runner-inner-splitter {
+  display: none;
+}
+
+.runner.params-collapsed .runner-result {
+  flex: 1;
+  height: auto;
 }
 
 .runner-header {
@@ -1110,6 +1121,8 @@ const confirmTest = async (status: number) => {
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
+  /* Flexbox 子元素属性 */
+  flex-shrink: 0;
 }
 
 .runner-title {
@@ -1139,7 +1152,9 @@ const confirmTest = async (status: number) => {
 .runner-body {
   padding: 14px 16px 18px;
   overflow: auto;
-  min-height: 0;
+  /* Flexbox 子元素属性：占据剩余空间，但有最小高度 */
+  flex: 1;
+  min-height: 120px;
 }
 
 .schema-hint {
@@ -1159,6 +1174,8 @@ const confirmTest = async (status: number) => {
   background: #fff;
   border-top: 1px solid #e2e8f0;
   border-bottom: 1px solid #e2e8f0;
+  /* Flexbox 子元素属性 */
+  flex-shrink: 0;
 }
 
 .runner-inner-splitter:hover {
@@ -1193,6 +1210,10 @@ const confirmTest = async (status: number) => {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  /* Flexbox 子元素属性：使用 CSS 变量控制高度 */
+  flex-shrink: 0;
+  height: var(--resultHeight);
+  min-height: 120px;
 }
 
 .result-header {
@@ -1383,7 +1404,9 @@ const confirmTest = async (status: number) => {
 }
 
 .runner-empty {
-  min-height: 0;
+  /* Flexbox 子元素属性：占据整个 runner 空间 */
+  flex: 1;
+  min-height: 200px;
   border-radius: 16px;
   border: 1px dashed #cbd5e1;
   background: #fff;
