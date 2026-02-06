@@ -56,13 +56,16 @@
             <input v-model="toolQuery" class="search-input" type="text" placeholder="搜索工具..." />
           </div>
           <div class="tools-list custom-scrollbar">
-            <button
+            <div
               v-for="tool in filteredTools"
               :key="tool.name"
-              type="button"
               class="tool-item"
+              role="button"
+              tabindex="0"
               :class="{ active: selectedTool?.name === tool.name }"
-              @click="selectTool(tool)"
+              @click.prevent.stop="selectTool(tool)"
+              @keydown.enter.prevent.stop="selectTool(tool)"
+              @keydown.space.prevent.stop="selectTool(tool)"
             >
               <div class="tool-icon-wrapper">
                 <span class="tool-icon">🛠️</span>
@@ -71,12 +74,12 @@
                 <div class="tool-name">{{ tool.name }}</div>
                 <div class="tool-summary" v-if="tool.description">{{ tool.description }}</div>
               </div>
-            </button>
+            </div>
           </div>
         </div>
       </div>
 
-      <div class="work-area">
+      <div class="work-area" ref="workAreaEl" :style="{ '--drawerHeight': (bottomCollapsed ? 44 : drawerHeight) + 'px' }">
         <div class="runner" :class="{ 'result-collapsed': resultCollapsed }">
           <template v-if="selectedTool">
             <div class="runner-header">
@@ -131,10 +134,11 @@
           </div>
         </div>
 
-        <div class="bottom-drawer" :class="{ collapsed: bottomCollapsed }" :style="{ height: bottomCollapsed ? '44px' : drawerHeight + 'px' }">
-          <div v-if="!bottomCollapsed" class="drawer-resize-handle" @pointerdown="startResize">
-            <div class="drawer-resize-grip"></div>
-          </div>
+        <div class="work-splitter" @pointerdown="startResize">
+          <div class="work-splitter-grip"></div>
+        </div>
+
+        <div class="bottom-drawer" :class="{ collapsed: bottomCollapsed }">
           <div class="drawer-header">
             <div class="tabs">
               <button type="button" class="tab" :class="{ active: bottomTab === 'history' }" @click="bottomTab = 'history'">历史</button>
@@ -209,6 +213,7 @@ const toolQuery = ref('');
 const bottomTab = ref<'history' | 'events'>('history');
 const bottomCollapsed = ref(true);
 const drawerHeight = ref(280);
+const workAreaEl = ref<HTMLDivElement | null>(null);
 
 const history = ref<HistoryEntry[]>([]);
 const events = ref<NotifyEntry[]>([]);
@@ -265,9 +270,12 @@ watch(
 );
 
 const clampDrawerHeight = (value: number) => {
-  const min = 160;
-  const max = Math.floor(Math.max(320, window.innerHeight * 0.6));
-  return Math.max(min, Math.min(max, value));
+  const minDrawer = 160;
+  const minRunner = 260;
+  const splitter = 12;
+  const container = workAreaEl.value?.clientHeight ?? window.innerHeight;
+  const maxDrawer = Math.max(minDrawer, container - splitter - minRunner);
+  return Math.max(minDrawer, Math.min(maxDrawer, value));
 };
 
 const onPointerMove = (e: PointerEvent) => {
@@ -293,8 +301,8 @@ const stopResize = () => {
 };
 
 const startResize = (e: PointerEvent) => {
-  if (bottomCollapsed.value) return;
   e.preventDefault();
+  if (bottomCollapsed.value) bottomCollapsed.value = false;
   resizing.value = true;
   resizeStartY.value = e.clientY;
   resizeStartHeight.value = drawerHeight.value;
@@ -823,16 +831,16 @@ const confirmTest = async (status: number) => {
 .work-area {
   flex: 1;
   min-width: 0;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: 1fr 12px var(--drawerHeight);
+  padding: 12px;
+  gap: 0;
   overflow: hidden;
   background: #f8fafc;
 }
 
 .runner {
-  flex: 1;
   min-height: 0;
-  margin: 12px 12px 0;
   border-radius: 16px;
   border: 1px solid #e2e8f0;
   background: #fff;
@@ -943,9 +951,7 @@ const confirmTest = async (status: number) => {
 }
 
 .runner-empty {
-  flex: 1;
   min-height: 0;
-  margin: 12px 12px 0;
   border-radius: 16px;
   border: 1px dashed #cbd5e1;
   background: #fff;
@@ -967,8 +973,36 @@ const confirmTest = async (status: number) => {
   font-size: 0.9rem;
 }
 
+.work-splitter {
+  height: 12px;
+  cursor: row-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  touch-action: none;
+  background: transparent;
+}
+
+.work-splitter:hover {
+  background: rgba(59, 130, 246, 0.06);
+}
+
+.work-splitter-grip {
+  width: 56px;
+  height: 4px;
+  border-radius: 999px;
+  background: #cbd5e1;
+  box-shadow: 0 -6px 0 #cbd5e1, 0 6px 0 #cbd5e1;
+  opacity: 0.85;
+}
+
+.work-splitter:hover .work-splitter-grip {
+  background: #93c5fd;
+  box-shadow: 0 -6px 0 #93c5fd, 0 6px 0 #93c5fd;
+}
+
 .bottom-drawer {
-  margin: 12px;
   border-radius: 16px;
   border: 1px solid #e2e8f0;
   background: #fff;
@@ -980,36 +1014,6 @@ const confirmTest = async (status: number) => {
 
 .bottom-drawer.collapsed {
   height: 44px;
-}
-
-.drawer-resize-handle {
-  height: 12px;
-  cursor: row-resize;
-  background: #f8fafc;
-  border-bottom: 1px solid #e2e8f0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  user-select: none;
-  touch-action: none;
-}
-
-.drawer-resize-handle:hover {
-  background: #eff6ff;
-}
-
-.drawer-resize-grip {
-  width: 48px;
-  height: 4px;
-  border-radius: 999px;
-  background: #cbd5e1;
-  box-shadow: 0 -6px 0 #cbd5e1, 0 6px 0 #cbd5e1;
-  opacity: 0.8;
-}
-
-.drawer-resize-handle:hover .drawer-resize-grip {
-  background: #93c5fd;
-  box-shadow: 0 -6px 0 #93c5fd, 0 6px 0 #93c5fd;
 }
 
 .drawer-header {
