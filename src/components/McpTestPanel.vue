@@ -22,8 +22,9 @@
     </div>
 
     <div class="main-content">
+      <!-- 左侧 Sidebar：只包含连接配置 -->
       <div class="sidebar">
-        <div class="card">
+        <div class="card connection-card">
           <div class="card-title-row">
             <span class="card-title">连接</span>
             <span class="pill" :class="connectionStatus">{{ statusText }}</span>
@@ -46,157 +47,154 @@
             </button>
           </div>
         </div>
+      </div>
 
-        <div class="card tools-card">
-          <div class="card-title-row">
-            <span class="card-title">工具</span>
-            <span class="count">{{ filteredTools.length }}</span>
-          </div>
-          <div class="search">
-            <input v-model="toolQuery" class="search-input" type="text" placeholder="搜索工具..." />
-          </div>
-          <div class="tools-list custom-scrollbar">
-            <div v-if="filteredTools.length === 0" class="tools-empty">
-              {{ connectionStatus === 'connected' ? '暂无可用工具' : '请先连接服务' }}
+      <!-- 右侧工作区 -->
+      <div class="work-area" ref="workAreaEl" :style="{ '--drawerHeight': (bottomCollapsed ? 44 : drawerHeight) + 'px' }">
+        <!-- 上部分：两列网格布局 -->
+        <div class="tools-grid">
+          <!-- 左列：工具列表 -->
+          <div class="tools-list-panel">
+            <div class="panel-header">
+              <span class="panel-title">工具</span>
+              <span class="panel-count">{{ filteredTools.length }}</span>
             </div>
-            <template v-else>
-              <div
-                v-for="tool in filteredTools"
-                :key="tool.name"
-                class="tool-item"
-                role="button"
-                tabindex="0"
-                :class="{ active: selectedTool?.name === tool.name }"
-                @click.prevent.stop="selectTool(tool)"
-                @keydown.enter.prevent.stop="selectTool(tool)"
-                @keydown.space.prevent.stop="selectTool(tool)"
-              >
-                <div class="tool-icon-wrapper">
-                  <span class="tool-icon">🛠️</span>
+            <div class="panel-search">
+              <input v-model="toolQuery" class="search-input" type="text" placeholder="搜索工具..." />
+            </div>
+            <div class="panel-body custom-scrollbar">
+              <div v-if="filteredTools.length === 0" class="empty-state">
+                {{ connectionStatus === 'connected' ? '暂无可用工具' : '请先连接服务' }}
+              </div>
+              <template v-else>
+                <div
+                  v-for="tool in filteredTools"
+                  :key="tool.name"
+                  class="tool-item"
+                  role="button"
+                  tabindex="0"
+                  :class="{ active: selectedTool?.name === tool.name }"
+                  @click.prevent.stop="selectTool(tool)"
+                  @keydown.enter.prevent.stop="selectTool(tool)"
+                  @keydown.space.prevent.stop="selectTool(tool)"
+                >
+                  <div class="tool-icon-wrapper">
+                    <span class="tool-icon">🛠️</span>
+                  </div>
+                  <div class="tool-info">
+                    <div class="tool-name">{{ tool.name }}</div>
+                    <div class="tool-summary" v-if="tool.description">{{ tool.description }}</div>
+                  </div>
+                  <span class="tool-arrow">›</span>
                 </div>
-                <div class="tool-info">
-                  <div class="tool-name">{{ tool.name }}</div>
-                  <div class="tool-summary" v-if="tool.description">{{ tool.description }}</div>
+              </template>
+            </div>
+          </div>
+
+          <!-- 右列：工具详情 -->
+          <div class="tool-detail-panel">
+            <template v-if="selectedTool">
+              <div class="panel-header">
+                <div class="tool-header-info">
+                  <span class="tool-icon">🛠️</span>
+                  <span class="tool-title">{{ selectedTool.name }}</span>
+                </div>
+                <div class="tool-header-actions">
+                  <button class="btn btn-light btn-sm" type="button" @click="copyInput">复制输入</button>
+                  <button class="btn btn-light btn-sm" type="button" @click="clearInput">清空</button>
+                </div>
+              </div>
+              <div class="panel-body custom-scrollbar">
+                <!-- 工具描述 -->
+                <p v-if="selectedTool.description" class="tool-description">{{ selectedTool.description }}</p>
+                
+                <!-- 参数表单 -->
+                <div class="params-section">
+                  <div class="section-title">参数</div>
+                  <div class="schema-hint">{{ schemaHint }}</div>
+                  <SchemaForm :schema="selectedTool.inputSchema" v-model="toolArguments" />
+                </div>
+                
+                <!-- 运行按钮 -->
+                <div class="run-section">
+                  <button class="btn btn-primary btn-run" type="button" @click="executeTool" :disabled="calling || connectionStatus !== 'connected'">
+                    <span v-if="calling" class="btn-spinner"></span>
+                    {{ calling ? '运行中...' : '运行工具' }}
+                  </button>
+                </div>
+                
+                <!-- 结果区域 -->
+                <div class="result-section" v-if="callResult || calling">
+                  <div class="result-header">
+                    <div class="result-left">
+                      <span class="section-title">结果</span>
+                      <span v-if="callResult" class="pill" :class="callResult.success && !callResult.is_error ? 'success' : 'error'">
+                        {{ callResult.success && !callResult.is_error ? '成功' : '失败' }}
+                      </span>
+                      <span v-if="callResult?.duration_ms" class="pill time">{{ callResult.duration_ms }}ms</span>
+                    </div>
+                    <div class="result-right">
+                      <button class="btn btn-light btn-sm" type="button" @click="resultView = 'structured'" :class="{ active: resultView === 'structured' }">结构化</button>
+                      <button class="btn btn-light btn-sm" type="button" @click="resultView = 'raw'" :class="{ active: resultView === 'raw' }">原始</button>
+                      <button class="btn btn-light btn-sm" type="button" @click="copyResult" :disabled="!callResult">复制</button>
+                      <button class="btn btn-light btn-sm" type="button" @click="clearResult" :disabled="!callResult">清空</button>
+                    </div>
+                  </div>
+                  <div class="result-body">
+                    <div v-if="calling" class="calling-overlay">
+                      <div class="calling-content">
+                        <div class="calling-spinner-large"></div>
+                        <div class="calling-info">
+                          <div class="calling-title">正在调用 {{ selectedTool?.name }}</div>
+                          <div class="calling-timer">
+                            已等待 <span class="time-value">{{ elapsedSeconds }}</span>s / {{ timeoutSeconds }}s
+                          </div>
+                          <div class="calling-progress">
+                            <div class="progress-bar">
+                              <div 
+                                class="progress-fill" 
+                                :style="{ width: progressPercent + '%' }"
+                                :class="{ 'progress-warning': progressPercent > 70, 'progress-danger': progressPercent > 90 }"
+                              ></div>
+                            </div>
+                          </div>
+                          <button class="btn btn-light btn-sm btn-cancel" @click="cancelCall">
+                            取消调用
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    <template v-else-if="callResult">
+                      <!-- 结构化视图 -->
+                      <template v-if="resultView === 'structured'">
+                        <template v-if="callResult.success && !callResult.is_error">
+                          <ContentRenderer :content="callResult.content" />
+                        </template>
+                        <div v-else class="error-result">
+                          <div class="error-header">
+                            <span class="error-icon">⚠️</span>
+                            <span class="error-title">{{ callResult.success ? '工具执行错误' : '调用失败' }}</span>
+                          </div>
+                          <div class="error-message">{{ callResult.error || '未知错误' }}</div>
+                          <ContentRenderer v-if="callResult.content" :content="callResult.content" />
+                        </div>
+                      </template>
+                      <!-- 原始JSON视图 -->
+                      <pre v-else class="code">{{ formatJson(callResult) }}</pre>
+                    </template>
+                  </div>
                 </div>
               </div>
             </template>
-          </div>
-        </div>
-      </div>
-
-      <div class="work-area" ref="workAreaEl" :style="{ '--drawerHeight': (bottomCollapsed ? 44 : drawerHeight) + 'px' }">
-        <div
-          class="runner"
-          ref="runnerEl"
-          :class="{ 'result-collapsed': resultCollapsed, 'params-collapsed': paramsCollapsed }"
-          :style="{ '--resultHeight': (resultCollapsed ? 44 : resultHeight) + 'px' }"
-        >
-          <template v-if="selectedTool">
-            <div class="runner-header" ref="runnerHeaderEl">
-              <div class="runner-title">
-                <div class="tool-title">{{ selectedTool.name }}</div>
-                <div class="tool-desc" v-if="selectedTool.description">{{ selectedTool.description }}</div>
-              </div>
-              <div class="runner-actions">
-                <button class="btn btn-light" type="button" @click="paramsCollapsed = !paramsCollapsed">
-                  {{ paramsCollapsed ? '展开参数' : '收起参数' }}
-                </button>
-                <button class="btn btn-light" type="button" @click="copyInput">复制输入</button>
-                <button class="btn btn-light" type="button" @click="clearInput">清空参数</button>
-                <button class="btn btn-primary" type="button" @click="executeTool" :disabled="calling || connectionStatus !== 'connected'">
-                  {{ calling ? '运行中...' : '运行工具' }}
-                </button>
-              </div>
+            <div v-else class="empty-state">
+              <div class="empty-icon">🔧</div>
+              <div class="empty-title">选择一个工具</div>
+              <div class="empty-sub">从左侧列表中选择一个工具来查看详情并运行</div>
             </div>
-
-            <div v-if="!paramsCollapsed" class="runner-body custom-scrollbar">
-              <div class="section-title">参数</div>
-              <div class="schema-hint">{{ schemaHint }}</div>
-              <SchemaForm :schema="selectedTool.inputSchema" v-model="toolArguments" />
-            </div>
-
-            <div v-if="!paramsCollapsed && !resultCollapsed" class="runner-inner-splitter" @pointerdown="startResultResize">
-              <div class="runner-inner-grip"></div>
-            </div>
-
-            <div class="runner-result">
-              <div class="result-header">
-                <div class="result-left">
-                  <span class="section-title">结果</span>
-                  <span v-if="callResult" class="pill" :class="callResult.success && !callResult.is_error ? 'success' : 'error'">
-                    {{ callResult.success && !callResult.is_error ? '成功' : '失败' }}
-                  </span>
-                  <span v-if="callResult?.duration_ms" class="pill time">{{ callResult.duration_ms }}ms</span>
-                </div>
-                <div class="result-right">
-                  <button class="btn btn-light btn-sm" type="button" @click="resultView = 'structured'" :class="{ active: resultView === 'structured' }">结构化</button>
-                  <button class="btn btn-light btn-sm" type="button" @click="resultView = 'raw'" :class="{ active: resultView === 'raw' }">原始JSON</button>
-                  <button class="btn btn-light btn-sm" type="button" @click="copyResult" :disabled="!callResult">复制结果</button>
-                  <button class="btn btn-light btn-sm" type="button" @click="clearResult" :disabled="!callResult">清空</button>
-                  <button class="btn btn-light btn-sm" type="button" @click="resultCollapsed = !resultCollapsed">
-                    {{ resultCollapsed ? '展开' : '收起' }}
-                  </button>
-                  <button class="btn btn-light btn-sm" type="button" @click="toggleFocus">
-                    {{ focusMode ? '退出最大化' : '结果最大化' }}
-                  </button>
-                </div>
-              </div>
-              <div v-if="!resultCollapsed" class="result-body custom-scrollbar">
-                <div v-if="!callResult && !calling" class="placeholder">运行工具后将在此处显示返回结果</div>
-                <div v-else-if="calling" class="calling-overlay">
-                  <div class="calling-content">
-                    <div class="calling-spinner-large"></div>
-                    <div class="calling-info">
-                      <div class="calling-title">正在调用 {{ selectedTool?.name }}</div>
-                      <div class="calling-timer">
-                        已等待 <span class="time-value">{{ elapsedSeconds }}</span>s / {{ timeoutSeconds }}s
-                      </div>
-                      <div class="calling-progress">
-                        <div class="progress-bar">
-                          <div 
-                            class="progress-fill" 
-                            :style="{ width: progressPercent + '%' }"
-                            :class="{ 'progress-warning': progressPercent > 70, 'progress-danger': progressPercent > 90 }"
-                          ></div>
-                        </div>
-                      </div>
-                      <button class="btn btn-light btn-sm btn-cancel" @click="cancelCall">
-                        取消调用
-                      </button>
-                    </div>
-                  </div>
-                </div>
-                <template v-else-if="callResult">
-                  <!-- 结构化视图 -->
-                  <template v-if="resultView === 'structured'">
-                    <!-- 成功且无错误 -->
-                    <template v-if="callResult.success && !callResult.is_error">
-                      <ContentRenderer :content="callResult.content" />
-                    </template>
-                    <!-- 工具返回错误 -->
-                    <div v-else class="error-result">
-                      <div class="error-header">
-                        <span class="error-icon">⚠️</span>
-                        <span class="error-title">{{ callResult.success ? '工具执行错误' : '调用失败' }}</span>
-                      </div>
-                      <div class="error-message">{{ callResult.error || '未知错误' }}</div>
-                      <ContentRenderer v-if="callResult.content" :content="callResult.content" />
-                    </div>
-                  </template>
-                  <!-- 原始JSON视图 -->
-                  <pre v-else class="code">{{ formatJson(callResult) }}</pre>
-                </template>
-              </div>
-            </div>
-          </template>
-
-          <div v-else class="runner-empty">
-            <div class="empty-title">右侧将展示工具参数</div>
-            <div class="empty-sub">状态：{{ statusText }} · 工具数：{{ tools.length }}</div>
-            <div class="empty-sub">请先连接服务，然后从左侧工具列表选择一个工具</div>
           </div>
         </div>
 
+        <!-- 下部分：历史/通知抽屉 -->
         <div class="work-splitter" @pointerdown="startResize">
           <div class="work-splitter-grip"></div>
         </div>
@@ -271,8 +269,6 @@ const selectedTool = ref<McpTool | null>(null);
 const toolArguments = ref<Record<string, any>>({});
 const callResult = ref<CallResponse | null>(null);
 const resultView = ref<'structured' | 'raw'>('structured');
-const resultCollapsed = ref(false);
-const paramsCollapsed = ref(false);
 const focusMode = ref(false);
 const toolQuery = ref('');
 
@@ -280,11 +276,6 @@ const bottomTab = ref<'history' | 'events'>('history');
 const bottomCollapsed = ref(true);
 const drawerHeight = ref(280);
 const workAreaEl = ref<HTMLDivElement | null>(null);
-const runnerEl = ref<HTMLDivElement | null>(null);
-const runnerHeaderEl = ref<HTMLDivElement | null>(null);
-// 默认结果区域高度，设置较小值确保参数区域有足够空间
-const resultHeight = ref(200);
-
 const history = ref<HistoryEntry[]>([]);
 const events = ref<NotifyEntry[]>([]);
 const historySeq = ref(0);
@@ -302,24 +293,10 @@ const resizing = ref(false);
 const resizeStartY = ref(0);
 const resizeStartHeight = ref(0);
 const activePointerId = ref<number | null>(null);
-const resizingResult = ref(false);
-const resultStartY = ref(0);
-const resultStartHeight = ref(0);
-const activeResultPointerId = ref<number | null>(null);
-
 try {
   const stored = Number(localStorage.getItem('mcpTestPanel.drawerHeight'));
   if (Number.isFinite(stored) && stored >= 120 && stored <= 520) {
     drawerHeight.value = stored;
-  }
-} catch {
-  // ignore
-}
-
-try {
-  const stored = Number(localStorage.getItem('mcpTestPanel.resultHeight'));
-  if (Number.isFinite(stored) && stored >= 140 && stored <= 800) {
-    resultHeight.value = stored;
   }
 } catch {
   // ignore
@@ -442,56 +419,8 @@ const startResize = (e: PointerEvent) => {
   window.addEventListener('pointercancel', stopResize);
 };
 
-const clampResultHeight = (value: number) => {
-  const minResult = 120;  // 结果区域最小高度
-  const minParams = 120;  // 参数区域最小高度
-  const splitter = 12;
-  const header = runnerHeaderEl.value?.clientHeight ?? 60;
-  const container = runnerEl.value?.clientHeight ?? 500;
-  // 最大结果高度 = 容器高度 - header - splitter - 参数最小高度
-  const maxResult = Math.max(minResult, container - header - splitter - minParams);
-  return Math.max(minResult, Math.min(maxResult, value));
-};
-
-const onResultPointerMove = (e: PointerEvent) => {
-  if (!resizingResult.value) return;
-  if (activeResultPointerId.value !== null && e.pointerId !== activeResultPointerId.value) return;
-  // 向上拖动 (clientY 变小) 时，结果区域变大
-  const dy = resultStartY.value - e.clientY;
-  const next = resultStartHeight.value + dy;
-  resultHeight.value = clampResultHeight(next);
-};
-
-const stopResultResize = () => {
-  if (!resizingResult.value) return;
-  resizingResult.value = false;
-  window.removeEventListener('pointermove', onResultPointerMove);
-  window.removeEventListener('pointerup', stopResultResize);
-  window.removeEventListener('pointercancel', stopResultResize);
-  activeResultPointerId.value = null;
-  try {
-    localStorage.setItem('mcpTestPanel.resultHeight', String(resultHeight.value));
-  } catch {
-    // ignore
-  }
-};
-
-const startResultResize = (e: PointerEvent) => {
-  e.preventDefault();
-  if (resultCollapsed.value) resultCollapsed.value = false;
-  if (paramsCollapsed.value) paramsCollapsed.value = false;
-  resizingResult.value = true;
-  resultStartY.value = e.clientY;
-  resultStartHeight.value = resultHeight.value;
-  activeResultPointerId.value = e.pointerId;
-  window.addEventListener('pointermove', onResultPointerMove);
-  window.addEventListener('pointerup', stopResultResize);
-  window.addEventListener('pointercancel', stopResultResize);
-};
-
 onBeforeUnmount(() => {
   stopResize();
-  stopResultResize();
   stopProgressTimer();
 });
 
@@ -566,8 +495,6 @@ const selectTool = (tool: McpTool) => {
   toolArguments.value = {};
   callResult.value = null;
   resultView.value = 'structured';
-  resultCollapsed.value = false;
-  paramsCollapsed.value = false;
   addEvent('info', `选择工具：${tool.name}`);
 };
 
@@ -663,11 +590,6 @@ const toggleFocus = () => {
   focusMode.value = !focusMode.value;
   if (focusMode.value) {
     bottomCollapsed.value = true;
-    resultCollapsed.value = false;
-    paramsCollapsed.value = true;
-    resultHeight.value = clampResultHeight(9999);
-  } else {
-    paramsCollapsed.value = false;
   }
 };
 
@@ -888,7 +810,7 @@ const confirmTest = async (status: number) => {
 }
 
 .sidebar {
-  width: 320px;
+  width: 240px;
   flex-shrink: 0;
   border-right: 1px solid var(--border);
   background: #f8fafc;
@@ -896,9 +818,12 @@ const confirmTest = async (status: number) => {
   flex-direction: column;
   gap: 12px;
   padding: 12px;
-  overflow: hidden;
-  /* 确保 sidebar 占满整个高度 */
+  overflow-y: auto;
   align-self: stretch;
+}
+
+.connection-card {
+  flex-shrink: 0;
 }
 
 .card {
@@ -910,25 +835,7 @@ const confirmTest = async (status: number) => {
   flex-shrink: 0;
 }
 
-.tools-card {
-  flex: 1 1 0;
-  min-height: 200px;
-  display: flex;
-  flex-direction: column;
-  /* 工具卡片占据剩余空间并允许内部滚动 */
-  overflow: hidden;
-}
 
-.tools-empty {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #94a3b8;
-  font-size: 0.9rem;
-  text-align: center;
-  padding: 20px;
-}
 
 .card-title-row {
   display: flex;
@@ -1078,11 +985,9 @@ const confirmTest = async (status: number) => {
 }
 
 .work-area {
-  /* 使用 flex: 1 1 0 确保正确分配空间 */
   flex: 1 1 0;
   min-width: 0;
   min-height: 0;
-  /* Flexbox 列布局 */
   display: flex;
   flex-direction: column;
   padding: 12px;
@@ -1091,118 +996,242 @@ const confirmTest = async (status: number) => {
   background: #f8fafc;
 }
 
-.runner {
-  /* Flexbox 子元素：占据剩余空间，确保至少有可见高度 */
-  flex: 1 1 0;
-  min-height: 300px;
-  border-radius: 16px;
-  border: 1px solid #e2e8f0;
-  background: #fff;
+/* 两列网格布局 */
+.tools-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(400px, 2fr);
+  gap: 12px;
+  min-height: 0;
   overflow: hidden;
-  /* 内部使用 Flexbox 布局 */
+}
+
+/* 工具列表面板 */
+.tools-list-panel {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
 }
 
-/* collapsed 状态样式 - 使用 Flexbox 方式控制 */
-.runner.result-collapsed .runner-result {
-  height: 44px;
-  min-height: 44px;
+/* 工具详情面板 */
+.tool-detail-panel {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
 }
 
-.runner.params-collapsed .runner-body {
-  display: none;
-}
-
-.runner.params-collapsed .runner-inner-splitter {
-  display: none;
-}
-
-.runner.params-collapsed .runner-result {
-  flex: 1;
-  height: auto;
-}
-
-.runner-header {
-  padding: 14px 16px;
+/* 面板头部 */
+.panel-header {
+  padding: 12px 16px;
   border-bottom: 1px solid #e2e8f0;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
-  /* Flexbox 子元素属性 */
+  flex-shrink: 0;
+  background: #fafbfc;
+}
+
+.panel-title {
+  font-weight: 700;
+  color: #1e293b;
+  font-size: 0.95rem;
+}
+
+.panel-count {
+  background: #e2e8f0;
+  color: #64748b;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+/* 面板搜索框 */
+.panel-search {
+  padding: 8px 12px;
+  border-bottom: 1px solid #e2e8f0;
   flex-shrink: 0;
 }
 
-.runner-title {
-  min-width: 0;
+/* 面板内容区域 */
+.panel-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  min-height: 0;
 }
 
-.tool-title {
-  font-weight: 900;
-  color: #0f172a;
-  font-size: 1.1rem;
+/* 工具详情面板的 panel-body 需要更多 padding */
+.tool-detail-panel .panel-body {
+  padding: 16px;
 }
 
-.tool-desc {
-  margin-top: 4px;
+/* 工具头部信息 */
+.tool-header-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tool-header-info .tool-icon {
+  font-size: 1.2rem;
+}
+
+.tool-header-info .tool-title {
+  font-weight: 700;
+  color: #1e293b;
+  font-size: 1rem;
+}
+
+.tool-header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* 工具描述 */
+.tool-description {
   color: #64748b;
   font-size: 0.9rem;
-  line-height: 1.5;
-  max-width: 900px;
+  line-height: 1.6;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e2e8f0;
 }
 
-.runner-actions {
+/* 参数区域 */
+.params-section {
+  margin-bottom: 16px;
+}
+
+/* 运行区域 */
+.run-section {
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.btn-run {
+  width: 100%;
+  padding: 12px 24px;
+  font-size: 1rem;
+  font-weight: 600;
   display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.btn-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #fff;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+/* 结果区域 */
+.result-section {
+  background: #0f172a;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.result-section .result-header {
+  padding: 10px 12px;
+  background: #1e293b;
+  border-bottom: 1px solid #334155;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.result-section .result-body {
+  padding: 12px;
+  color: #e2e8f0;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+/* 空状态样式 */
+.empty-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.empty-icon {
+  font-size: 3rem;
+  margin-bottom: 16px;
+  opacity: 0.5;
+}
+
+.empty-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #64748b;
+  margin-bottom: 8px;
+}
+
+.empty-sub {
+  font-size: 0.9rem;
+  color: #94a3b8;
+  line-height: 1.5;
+}
+
+/* 工具项样式 */
+.tool-item {
+  display: flex;
+  align-items: flex-start;
   gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s;
+  border: 1px solid transparent;
+}
+
+.tool-item:hover {
+  background: #f1f5f9;
+}
+
+.tool-item.active {
+  background: #eff6ff;
+  border-color: #3b82f6;
+}
+
+.tool-arrow {
+  color: #94a3b8;
+  font-size: 1.2rem;
+  font-weight: 300;
+  margin-left: auto;
   flex-shrink: 0;
 }
 
-.runner-body {
-  padding: 14px 16px 18px;
-  overflow: auto;
-  /* Flexbox 子元素属性：占据剩余空间，允许完全收缩 */
-  flex: 1;
-  min-height: 0;
+.tool-item.active .tool-arrow {
+  color: #3b82f6;
 }
 
 .schema-hint {
   margin: -4px 0 12px;
   color: #94a3b8;
   font-size: 0.82rem;
-}
-
-.runner-inner-splitter {
-  height: 12px;
-  cursor: row-resize;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  user-select: none;
-  touch-action: none;
-  background: #fff;
-  border-top: 1px solid #e2e8f0;
-  border-bottom: 1px solid #e2e8f0;
-  /* Flexbox 子元素属性 */
-  flex-shrink: 0;
-}
-
-.runner-inner-splitter:hover {
-  background: rgba(59, 130, 246, 0.06);
-}
-
-.runner-inner-grip {
-  width: 56px;
-  height: 4px;
-  border-radius: 999px;
-  background: #cbd5e1;
-  box-shadow: 0 -6px 0 #cbd5e1, 0 6px 0 #cbd5e1;
-  opacity: 0.85;
-}
-
-.runner-inner-splitter:hover .runner-inner-grip {
-  background: #93c5fd;
-  box-shadow: 0 -6px 0 #93c5fd, 0 6px 0 #93c5fd;
 }
 
 .section-title {
@@ -1212,18 +1241,6 @@ const confirmTest = async (status: number) => {
   margin-bottom: 10px;
 }
 
-.runner-result {
-  border-top: 1px solid #e2e8f0;
-  background: #0b1220;
-  color: #e2e8f0;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  /* Flexbox 子元素属性：使用 flex-basis 代替固定 height，允许收缩 */
-  flex-shrink: 1;
-  flex-basis: var(--resultHeight);
-  min-height: 44px;
-}
 
 .result-header {
   display: flex;
@@ -1412,26 +1429,7 @@ const confirmTest = async (status: number) => {
   line-height: 1.55;
 }
 
-.runner-empty {
-  /* Flexbox 子元素属性：占据整个 runner 空间 */
-  flex: 1 1 0;
-  min-height: 100px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  color: #64748b;
-  padding: 20px;
-}
-
-.empty-title {
-  font-weight: 900;
-  color: #0f172a;
-  font-size: 1.1rem;
-  margin-bottom: 6px;
-}
-
-.empty-sub {
+.old-empty-sub {
   font-size: 0.9rem;
 }
 
