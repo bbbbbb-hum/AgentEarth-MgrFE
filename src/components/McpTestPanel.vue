@@ -3,34 +3,45 @@
     <!-- 头部 -->
     <div class="panel-header">
       <div class="header-left">
-        <div class="header-title-group">
-          <h2>MCP服务测试</h2>
-          <span class="service-name">{{ serviceName }}</span>
+        <div class="icon-wrapper">
+          <span class="header-icon">🔌</span>
         </div>
-        <!-- 连接状态移到头部 -->
-        <div class="connection-badge" :class="connectionStatus">
-          <span class="status-dot"></span>
-          <span class="status-text">{{ statusText }}</span>
+        <div class="header-info">
+          <h2>MCP 服务测试台</h2>
+          <div class="header-meta">
+            <span class="service-name">{{ serviceName }}</span>
+            <div class="connection-badge" :class="connectionStatus">
+              <span class="status-dot"></span>
+              <span class="status-text">{{ statusText }}</span>
+            </div>
+          </div>
         </div>
       </div>
-      <button class="btn-close" @click="$emit('close')">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+      <button class="btn-close" @click="$emit('close')" title="关闭">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
       </button>
     </div>
 
     <!-- 连接前/连接失败状态 -->
     <div class="connection-overlay" v-if="connectionStatus !== 'connected'">
       <div class="connection-card">
-        <div class="status-icon-large" :class="connectionStatus">
-          <span v-if="connectionStatus === 'connecting'">⏳</span>
-          <span v-else-if="connectionStatus === 'error'">❌</span>
-          <span v-else>🔌</span>
+        <div class="status-visual" :class="connectionStatus">
+          <div class="pulse-ring" v-if="connectionStatus === 'connecting'"></div>
+          <span class="visual-icon" v-if="connectionStatus === 'connecting'">⏳</span>
+          <span class="visual-icon" v-else-if="connectionStatus === 'error'">⚠️</span>
+          <span class="visual-icon" v-else>🚀</span>
         </div>
-        <h3>{{ connectionStatus === 'connecting' ? '正在连接服务...' : (connectionStatus === 'error' ? '连接失败' : '准备连接') }}</h3>
-        <p class="error-text" v-if="connectionError">{{ connectionError }}</p>
+        <h3>{{ connectionStatus === 'connecting' ? '正在建立连接...' : (connectionStatus === 'error' ? '连接中断' : '准备就绪') }}</h3>
+        <p class="status-desc" v-if="!connectionError">
+          {{ connectionStatus === 'connecting' ? '请稍候，正在尝试连接到 MCP 服务' : '点击下方按钮开始测试连接' }}
+        </p>
+        <div class="error-box" v-if="connectionError">
+          <span class="error-icon">❌</span>
+          <span class="error-msg">{{ connectionError }}</span>
+        </div>
         
         <button 
-          class="btn btn-primary btn-lg"
+          class="btn btn-primary btn-lg btn-glow"
           :disabled="connecting"
           @click="connect"
         >
@@ -44,10 +55,11 @@
       <!-- 左侧工具列表 -->
       <div class="tools-sidebar">
         <div class="sidebar-header">
-          <span class="sidebar-title">工具列表</span>
-          <span class="tool-count">{{ tools.length }}</span>
+          <span class="sidebar-title">可用工具</span>
+          <span class="tool-count-badge">{{ tools.length }}</span>
         </div>
-        <div class="tools-list">
+        
+        <div class="tools-list custom-scrollbar">
           <div 
             v-for="tool in tools" 
             :key="tool.name"
@@ -55,39 +67,38 @@
             :class="{ active: selectedTool?.name === tool.name }"
             @click="selectTool(tool)"
           >
-            <div class="tool-icon">🛠️</div>
+            <div class="tool-icon-wrapper">
+              <span class="tool-icon">🛠️</span>
+            </div>
             <div class="tool-info">
               <span class="tool-name">{{ tool.name }}</span>
-              <span class="tool-summary" v-if="tool.description">{{ tool.description.slice(0, 30) }}{{ tool.description.length > 30 ? '...' : '' }}</span>
+              <span class="tool-summary" v-if="tool.description">{{ tool.description }}</span>
             </div>
-            <div class="active-indicator"></div>
+            <div class="chevron-right">›</div>
           </div>
         </div>
       </div>
 
-      <!-- 右侧工具详情 -->
-      <div class="tool-detail-container" v-if="selectedTool">
-        <div class="tool-detail-content">
-          <!-- 工具头部信息 -->
-          <div class="tool-header-card">
+      <!-- 右侧工作台 (Split View) -->
+      <div class="tool-workbench" v-if="selectedTool">
+        <!-- 左半部分：输入与操作 -->
+        <div class="workbench-input custom-scrollbar">
+          <div class="tool-header">
             <div class="tool-title-row">
               <h3>{{ selectedTool.name }}</h3>
-              <div class="tool-tags">
-                <span class="tag">工具</span>
-              </div>
+              <span class="tag">Function</span>
             </div>
             <p class="tool-description" v-if="selectedTool.description">
               {{ selectedTool.description }}
             </p>
           </div>
 
-          <!-- 参数配置区 -->
-          <div class="tool-section">
+          <div class="tool-config">
             <div class="section-header">
               <h4>参数配置</h4>
-              <span class="section-subtitle">Input Schema</span>
+              <span class="section-line"></span>
             </div>
-            <div class="params-card">
+            <div class="params-container">
               <SchemaForm 
                 :schema="selectedTool.inputSchema" 
                 v-model="toolArguments"
@@ -95,42 +106,58 @@
             </div>
           </div>
 
-          <!-- 操作栏 -->
-          <div class="action-bar">
+          <div class="action-footer">
             <button 
-              class="btn btn-primary btn-execute"
+              class="btn btn-primary btn-block btn-lg btn-glow"
               :class="{ 'is-loading': calling }"
               :disabled="calling"
               @click="executeTool"
             >
               <span class="icon" v-if="!calling">▶</span>
               <span class="spinner" v-else></span>
-              {{ calling ? '执行中...' : '执行调用' }}
+              {{ calling ? '执行中...' : '运行工具' }}
             </button>
           </div>
+        </div>
 
-          <!-- 执行结果 -->
-          <div class="tool-section result-section" v-if="callResult !== null">
-            <div class="section-header">
-              <h4>执行结果</h4>
-              <div class="result-meta" v-if="callResult.duration_ms">
-                <span class="duration-badge">⏱ {{ callResult.duration_ms }}ms</span>
-                <button class="btn-text" @click="copyResult">
-                  <span class="icon">📋</span> 复制
-                </button>
-              </div>
+        <!-- 右半部分：输出终端 -->
+        <div class="workbench-output">
+          <div class="terminal-header">
+            <div class="terminal-controls">
+              <span class="dot red"></span>
+              <span class="dot yellow"></span>
+              <span class="dot green"></span>
             </div>
-            <div 
-              class="result-card"
-              :class="{ error: callResult.is_error || !callResult.success }"
-            >
-              <div class="code-window-header">
-                <span class="dot red"></span>
-                <span class="dot yellow"></span>
-                <span class="dot green"></span>
-                <span class="window-title">Output</span>
+            <span class="terminal-title">Terminal Output</span>
+            <div class="terminal-actions">
+              <span class="duration-badge" v-if="callResult?.duration_ms">
+                ⏱ {{ callResult.duration_ms }}ms
+              </span>
+              <button class="btn-icon-sm" @click="copyResult" title="复制结果" v-if="callResult">
+                📋
+              </button>
+            </div>
+          </div>
+          
+          <div class="terminal-body custom-scrollbar">
+            <div v-if="callResult" class="result-content" :class="{ error: callResult.is_error || !callResult.success }">
+              <div class="result-line timestamp">
+                <span class="prompt">➜</span> 
+                <span class="cmd">executed {{ selectedTool.name }}</span>
+                <span class="time">@ {{ new Date().toLocaleTimeString() }}</span>
               </div>
-              <pre class="code-content">{{ formatResult(callResult) }}</pre>
+              <pre class="code-block">{{ formatResult(callResult) }}</pre>
+            </div>
+            
+            <div v-else-if="calling" class="terminal-placeholder calling">
+              <div class="spinner-large"></div>
+              <p>正在等待服务响应...</p>
+            </div>
+            
+            <div v-else class="terminal-placeholder">
+              <div class="placeholder-visual">⌨️</div>
+              <p>准备就绪</p>
+              <span class="sub-text">配置参数并运行以查看结果</span>
             </div>
           </div>
         </div>
@@ -139,9 +166,9 @@
       <!-- 未选择工具提示 -->
       <div class="empty-selection" v-else>
         <div class="empty-content">
-          <div class="empty-icon">👈</div>
-          <h3>请选择一个工具</h3>
-          <p>从左侧列表选择一个工具开始测试</p>
+          <div class="empty-illustration">👈</div>
+          <h3>选择一个工具</h3>
+          <p>从左侧列表中选择一个工具以开始测试</p>
         </div>
       </div>
     </div>
@@ -150,14 +177,17 @@
     <div class="panel-footer" v-if="connectionStatus === 'connected'">
       <div class="footer-left">
         <div class="server-info-pill" v-if="connectResult?.server_info">
-          <span class="label">服务端:</span>
-          <span class="value">{{ connectResult.server_info.name }} v{{ connectResult.server_info.version }}</span>
+          <span class="status-indicator online"></span>
+          <span class="server-name">{{ connectResult.server_info.name }}</span>
+          <span class="server-version">v{{ connectResult.server_info.version }}</span>
         </div>
       </div>
       <div class="footer-actions">
-        <button class="btn btn-outline" @click="$emit('close')">取消</button>
-        <button class="btn btn-danger" @click="confirmTest(-1)">测试失败</button>
-        <button class="btn btn-success" @click="confirmTest(1)">测试通过</button>
+        <button class="btn btn-text" @click="$emit('close')">稍后处理</button>
+        <div class="action-group">
+          <button class="btn btn-danger-soft" @click="confirmTest(-1)">❌ 测试失败</button>
+          <button class="btn btn-success-soft" @click="confirmTest(1)">✅ 测试通过</button>
+        </div>
       </div>
     </div>
   </div>
@@ -200,8 +230,8 @@ const connectionStatus = computed(() => {
 const statusText = computed(() => {
   switch (connectionStatus.value) {
     case 'connecting': return '连接中...';
-    case 'connected': return '已连接';
-    case 'error': return '连接失败';
+    case 'connected': return '在线';
+    case 'error': return '离线';
     default: return '未连接';
   }
 });
@@ -266,7 +296,7 @@ const executeTool = async () => {
 // 格式化结果
 const formatResult = (result: CallResponse): string => {
   if (!result.success) {
-    return `错误: ${result.error}`;
+    return `Error: ${result.error}`;
   }
   try {
     return JSON.stringify(result.content, null, 2);
@@ -279,8 +309,6 @@ const formatResult = (result: CallResponse): string => {
 const copyResult = () => {
   if (callResult.value) {
     navigator.clipboard.writeText(formatResult(callResult.value));
-    // 这里可以使用一个轻量级的提示组件，暂时用alert代替
-    // alert('已复制到剪贴板');
   }
 };
 
@@ -302,18 +330,47 @@ const confirmTest = async (status: number) => {
 </script>
 
 <style scoped>
+/* 全局变量模拟 */
 .mcp-test-panel {
+  --primary: #3b82f6;
+  --primary-dark: #2563eb;
+  --primary-light: #eff6ff;
+  --success: #10b981;
+  --danger: #ef4444;
+  --warning: #f59e0b;
+  --bg-dark: #1e293b;
+  --text-main: #1e293b;
+  --text-secondary: #64748b;
+  --border: #e2e8f0;
+  
   display: flex;
   flex-direction: column;
-  height: 90vh; /* 增加高度 */
-  max-height: 800px;
+  height: 90vh;
+  max-height: 850px;
   width: 90vw;
-  max-width: 1200px;
-  background: #f8fafc;
-  border-radius: 16px;
+  max-width: 1280px;
+  background: #ffffff;
+  border-radius: 20px;
   overflow: hidden;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0,0,0,0.02);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  color: var(--text-main);
+}
+
+/* 自定义滚动条 */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 
 /* 头部样式 */
@@ -323,8 +380,7 @@ const confirmTest = async (status: number) => {
   align-items: center;
   padding: 16px 24px;
   background: #fff;
-  border-bottom: 1px solid #e2e8f0;
-  z-index: 10;
+  border-bottom: 1px solid var(--border);
 }
 
 .header-left {
@@ -333,82 +389,76 @@ const confirmTest = async (status: number) => {
   gap: 16px;
 }
 
-.header-title-group {
+.icon-wrapper {
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  border-radius: 12px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  justify-content: center;
+  font-size: 1.25rem;
 }
 
-.header-title-group h2 {
-  margin: 0;
-  font-size: 1.25rem;
+.header-info h2 {
+  margin: 0 0 4px;
+  font-size: 1.1rem;
   font-weight: 700;
-  color: #1e293b;
-  letter-spacing: -0.025em;
+  color: #0f172a;
+}
+
+.header-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .service-name {
-  padding: 4px 10px;
-  background: #eff6ff;
-  color: #2563eb;
-  border-radius: 6px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  border: 1px solid #dbeafe;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  font-weight: 500;
 }
 
 .connection-badge {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 10px;
-  border-radius: 20px;
-  font-size: 0.8rem;
-  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
   background: #f1f5f9;
-  color: #64748b;
-  transition: all 0.3s ease;
+  color: var(--text-secondary);
 }
 
-.connection-badge.connected {
-  background: #dcfce7;
-  color: #15803d;
-}
-
-.connection-badge.connecting {
-  background: #fef3c7;
-  color: #b45309;
-}
-
-.connection-badge.error {
-  background: #fee2e2;
-  color: #b91c1c;
-}
+.connection-badge.connected { background: #dcfce7; color: #15803d; }
+.connection-badge.connecting { background: #fef3c7; color: #b45309; }
+.connection-badge.error { background: #fee2e2; color: #b91c1c; }
 
 .status-dot {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background-color: currentColor;
 }
 
 .btn-close {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   border: none;
   background: transparent;
   color: #94a3b8;
   cursor: pointer;
-  border-radius: 8px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   transition: all 0.2s;
 }
 
 .btn-close:hover {
   background: #f1f5f9;
-  color: #475569;
+  color: #64748b;
 }
 
 /* 连接前遮罩 */
@@ -417,7 +467,7 @@ const confirmTest = async (status: number) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f8fafc;
+  background: linear-gradient(to bottom, #f8fafc, #fff);
 }
 
 .connection-card {
@@ -425,38 +475,40 @@ const confirmTest = async (status: number) => {
   padding: 48px;
   background: #fff;
   border-radius: 24px;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  max-width: 400px;
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.1);
+  max-width: 420px;
   width: 100%;
+  border: 1px solid #f1f5f9;
 }
 
-.status-icon-large {
-  font-size: 3rem;
-  margin-bottom: 24px;
-  display: inline-block;
-  padding: 20px;
+.status-visual {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  margin: 0 auto 24px;
   background: #f1f5f9;
   border-radius: 50%;
-  width: 100px;
-  height: 100px;
   display: flex;
   align-items: center;
   justify-content: center;
+  font-size: 3rem;
 }
 
-.status-icon-large.connecting {
-  animation: pulse 2s infinite;
-  background: #fef3c7;
+.status-visual.connecting { background: #eff6ff; }
+.status-visual.error { background: #fef2f2; }
+
+.pulse-ring {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  border-radius: 50%;
+  border: 4px solid #3b82f6;
+  opacity: 0;
+  animation: pulse-ring 2s infinite;
 }
 
-.status-icon-large.error {
-  background: #fee2e2;
-}
-
-@keyframes pulse {
-  0% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.05); opacity: 0.8; }
-  100% { transform: scale(1); opacity: 1; }
+@keyframes pulse-ring {
+  0% { transform: scale(0.8); opacity: 0.5; }
+  100% { transform: scale(1.5); opacity: 0; }
 }
 
 .connection-card h3 {
@@ -465,19 +517,23 @@ const confirmTest = async (status: number) => {
   color: #0f172a;
 }
 
-.error-text {
-  color: #ef4444;
-  margin-bottom: 24px;
-  padding: 12px;
-  background: #fef2f2;
-  border-radius: 8px;
-  font-size: 0.9rem;
+.status-desc {
+  color: #64748b;
+  margin-bottom: 32px;
 }
 
-.btn-lg {
-  padding: 12px 32px;
-  font-size: 1.1rem;
-  width: 100%;
+.error-box {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+  padding: 12px 16px;
+  border-radius: 12px;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  text-align: left;
+  font-size: 0.9rem;
 }
 
 /* 主布局 */
@@ -485,39 +541,39 @@ const confirmTest = async (status: number) => {
   display: flex;
   flex: 1;
   overflow: hidden;
-  background: #fff;
+  background: #f8fafc;
 }
 
 /* 侧边栏 */
 .tools-sidebar {
   width: 280px;
-  background: #f8fafc;
-  border-right: 1px solid #e2e8f0;
+  background: #fff;
+  border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
 }
 
 .sidebar-header {
-  padding: 20px;
+  padding: 20px 24px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid #f1f5f9;
 }
 
 .sidebar-title {
-  font-weight: 600;
-  color: #475569;
+  font-weight: 700;
+  color: #334155;
+  font-size: 0.8rem;
   text-transform: uppercase;
-  font-size: 0.75rem;
   letter-spacing: 0.05em;
 }
 
-.tool-count {
-  background: #e2e8f0;
+.tool-count-badge {
+  background: #f1f5f9;
   color: #64748b;
   padding: 2px 8px;
-  border-radius: 12px;
+  border-radius: 10px;
   font-size: 0.75rem;
   font-weight: 600;
 }
@@ -525,43 +581,49 @@ const confirmTest = async (status: number) => {
 .tools-list {
   flex: 1;
   overflow-y: auto;
-  padding: 12px;
+  padding: 16px;
 }
 
 .tool-item {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 12px;
-  padding: 12px;
+  padding: 12px 16px;
   margin-bottom: 8px;
-  border-radius: 8px;
+  border-radius: 12px;
   cursor: pointer;
-  transition: all 0.2s;
-  position: relative;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   border: 1px solid transparent;
 }
 
 .tool-item:hover {
-  background: #fff;
-  border-color: #e2e8f0;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  background: #f8fafc;
+  transform: translateY(-1px);
 }
 
 .tool-item.active {
-  background: #fff;
-  border-color: #3b82f6;
-  box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.1);
-}
-
-.tool-icon {
-  font-size: 1.2rem;
-  padding: 6px;
-  background: #f1f5f9;
-  border-radius: 6px;
-}
-
-.tool-item.active .tool-icon {
   background: #eff6ff;
+  border-color: #dbeafe;
+}
+
+.tool-icon-wrapper {
+  width: 36px;
+  height: 36px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  transition: all 0.2s;
+}
+
+.tool-item.active .tool-icon-wrapper {
+  background: #3b82f6;
+  border-color: #3b82f6;
+  color: #fff;
+  box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.2);
 }
 
 .tool-info {
@@ -573,8 +635,8 @@ const confirmTest = async (status: number) => {
   display: block;
   font-weight: 600;
   color: #334155;
-  margin-bottom: 4px;
   font-size: 0.9rem;
+  margin-bottom: 2px;
 }
 
 .tool-item.active .tool-name {
@@ -590,218 +652,328 @@ const confirmTest = async (status: number) => {
   text-overflow: ellipsis;
 }
 
-.active-indicator {
-  position: absolute;
-  left: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 4px;
-  height: 24px;
-  background: #3b82f6;
-  border-radius: 0 4px 4px 0;
-  opacity: 0;
-  transition: opacity 0.2s;
+.chevron-right {
+  color: #cbd5e1;
+  font-size: 1.2rem;
+  font-weight: 300;
 }
 
-.tool-item.active .active-indicator {
-  opacity: 1;
+.tool-item.active .chevron-right {
+  color: #3b82f6;
 }
 
-/* 详情区 */
-.tool-detail-container {
+/* 工作台布局 */
+.tool-workbench {
   flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+.workbench-input {
+  flex: 1;
+  min-width: 400px;
+  max-width: 600px;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
   background: #fff;
-  overflow-y: auto;
-  padding: 24px 40px;
 }
 
-.tool-detail-content {
-  max-width: 800px;
-  margin: 0 auto;
+.workbench-output {
+  flex: 1.5;
+  min-width: 400px;
+  background: #1e293b;
+  color: #e2e8f0;
+  display: flex;
+  flex-direction: column;
 }
 
-.tool-header-card {
-  margin-bottom: 32px;
+/* 输入区域 */
+.tool-header {
+  padding: 32px 32px 20px;
 }
 
 .tool-title-row {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
   margin-bottom: 12px;
 }
 
 .tool-title-row h3 {
   margin: 0;
-  font-size: 1.75rem;
-  color: #0f172a;
+  font-size: 1.5rem;
   font-weight: 700;
+  color: #0f172a;
 }
 
 .tag {
-  padding: 4px 12px;
+  padding: 4px 10px;
   background: #f1f5f9;
   color: #64748b;
-  border-radius: 20px;
-  font-size: 0.75rem;
+  border-radius: 6px;
+  font-size: 0.7rem;
   font-weight: 600;
   text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .tool-description {
-  font-size: 1rem;
+  font-size: 0.95rem;
   color: #475569;
   line-height: 1.6;
   margin: 0;
 }
 
-.tool-section {
-  margin-bottom: 32px;
+.tool-config {
+  flex: 1;
+  padding: 0 32px 32px;
+  overflow-y: auto;
 }
 
 .section-header {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  margin-bottom: 16px;
-  border-bottom: 1px solid #f1f5f9;
-  padding-bottom: 8px;
+  align-items: center;
+  gap: 12px;
+  margin: 24px 0 20px;
 }
 
 .section-header h4 {
   margin: 0;
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-weight: 600;
   color: #334155;
 }
 
-.section-subtitle {
-  font-size: 0.8rem;
-  color: #94a3b8;
-  font-family: monospace;
+.section-line {
+  flex: 1;
+  height: 1px;
+  background: #f1f5f9;
 }
 
-.params-card {
+.action-footer {
+  padding: 24px 32px;
+  border-top: 1px solid #f1f5f9;
   background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  padding: 24px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  z-index: 5;
 }
 
-.action-bar {
-  margin-bottom: 32px;
+/* 终端样式 */
+.terminal-header {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px;
+  background: #0f172a;
+  border-bottom: 1px solid #334155;
 }
 
-.btn-execute {
-  padding: 12px 36px;
-  font-size: 1rem;
+.terminal-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.terminal-title {
+  font-family: 'Fira Code', monospace;
+  font-size: 0.8rem;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.terminal-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.terminal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  font-family: 'Fira Code', monospace;
+  font-size: 0.9rem;
+}
+
+.result-line {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+  opacity: 0.7;
+  font-size: 0.8rem;
+}
+
+.result-line .prompt { color: #10b981; font-weight: bold; }
+.result-line .cmd { color: #e2e8f0; }
+.result-line .time { color: #64748b; margin-left: auto; }
+
+.code-block {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: #e2e8f0;
+  line-height: 1.6;
+}
+
+.result-content.error .code-block {
+  color: #fca5a5;
+}
+
+.terminal-placeholder {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #475569;
+  opacity: 0.5;
+}
+
+.placeholder-visual {
+  font-size: 4rem;
+  margin-bottom: 16px;
+  opacity: 0.5;
+}
+
+/* 底部操作区 */
+.panel-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  border-top: 1px solid var(--border);
+  background: #fff;
+}
+
+.server-info-pill {
   display: flex;
   align-items: center;
   gap: 8px;
-  border-radius: 8px;
+  padding: 6px 12px;
+  background: #f8fafc;
+  border-radius: 20px;
+  border: 1px solid #e2e8f0;
+  font-size: 0.85rem;
+  color: #475569;
+}
+
+.status-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.status-indicator.online { background: #10b981; }
+
+.footer-actions {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.action-group {
+  display: flex;
+  gap: 12px;
+}
+
+/* 按钮组件 */
+.btn {
+  padding: 10px 24px;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: #fff;
   box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.2);
-  transition: all 0.2s;
 }
 
-.btn-execute:hover:not(:disabled) {
+.btn-primary:hover:not(:disabled) {
+  box-shadow: 0 8px 12px -1px rgba(37, 99, 235, 0.3);
   transform: translateY(-1px);
-  box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.2);
 }
 
+.btn-glow:not(:disabled) {
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-glow:after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: linear-gradient(to right, rgba(255,255,255,0) 0%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0) 100%);
+  transform: skewX(-20deg) translateX(-150%);
+  transition: transform 0.5s;
+}
+
+.btn-glow:hover:after {
+  transform: skewX(-20deg) translateX(150%);
+  transition: transform 0.5s;
+}
+
+.btn-text {
+  background: transparent;
+  color: #64748b;
+}
+.btn-text:hover { color: #334155; background: #f1f5f9; }
+
+.btn-success-soft {
+  background: #ecfdf5;
+  color: #059669;
+}
+.btn-success-soft:hover { background: #d1fae5; }
+
+.btn-danger-soft {
+  background: #fef2f2;
+  color: #dc2626;
+}
+.btn-danger-soft:hover { background: #fee2e2; }
+
+.btn-block { width: 100%; padding: 14px; font-size: 1rem; }
+.btn-lg { padding: 14px 32px; font-size: 1.05rem; }
+
+.btn-icon-sm {
+  width: 28px; height: 28px;
+  border-radius: 6px;
+  background: rgba(255,255,255,0.1);
+  color: #cbd5e1;
+  border: none;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.btn-icon-sm:hover { background: rgba(255,255,255,0.2); color: #fff; }
+
+/* 动画 */
 .spinner {
-  width: 16px;
-  height: 16px;
-  border: 2px solid #ffffff;
-  border-top-color: transparent;
+  width: 18px; height: 18px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: #fff;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
 
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-/* 结果区 */
-.result-meta {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.duration-badge {
-  font-size: 0.8rem;
-  color: #64748b;
-  background: #f1f5f9;
-  padding: 2px 8px;
-  border-radius: 4px;
-}
-
-.btn-text {
-  background: none;
-  border: none;
-  color: #3b82f6;
-  font-size: 0.85rem;
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 4px;
-}
-
-.btn-text:hover {
-  background: #eff6ff;
-}
-
-.result-card {
-  background: #1e293b;
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-}
-
-.code-window-header {
-  background: #0f172a;
-  padding: 10px 16px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.dot {
-  width: 10px;
-  height: 10px;
+.spinner-large {
+  width: 48px; height: 48px;
+  border: 4px solid #e2e8f0;
+  border-top-color: #3b82f6;
   border-radius: 50%;
+  animation: spin 1s linear infinite;
 }
 
-.dot.red { background: #ef4444; }
-.dot.yellow { background: #f59e0b; }
-.dot.green { background: #10b981; }
-
-.window-title {
-  margin-left: 12px;
-  color: #64748b;
-  font-family: monospace;
-  font-size: 0.8rem;
-}
-
-.code-content {
-  margin: 0;
-  padding: 20px;
-  color: #e2e8f0;
-  font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
-  font-size: 0.9rem;
-  line-height: 1.5;
-  white-space: pre-wrap;
-  word-break: break-all;
-  max-height: 400px;
-  overflow-y: auto;
-}
-
-.result-card.error .code-content {
-  color: #fca5a5;
-  background: #450a0a;
-}
+@keyframes spin { to { transform: rotate(360deg); } }
 
 /* 空状态 */
 .empty-selection {
@@ -814,104 +986,24 @@ const confirmTest = async (status: number) => {
 
 .empty-content {
   text-align: center;
-  color: #94a3b8;
+  max-width: 300px;
 }
 
-.empty-icon {
+.empty-illustration {
   font-size: 4rem;
-  margin-bottom: 16px;
+  margin-bottom: 24px;
+  animation: bounce 2s infinite;
 }
 
-/* 底部 */
-.panel-footer {
-  padding: 16px 24px;
-  background: #fff;
-  border-top: 1px solid #e2e8f0;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+@keyframes bounce {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(-10px); }
 }
 
-.footer-left {
-  display: flex;
-  gap: 16px;
-}
-
-.server-info-pill {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 20px;
-  font-size: 0.8rem;
-}
-
-.server-info-pill .label {
-  color: #64748b;
-}
-
-.server-info-pill .value {
+.empty-content h3 {
   color: #334155;
-  font-weight: 600;
+  font-size: 1.25rem;
+  margin-bottom: 8px;
 }
-
-.footer-actions {
-  display: flex;
-  gap: 12px;
-}
-
-/* 通用按钮 */
-.btn {
-  border: none;
-  border-radius: 8px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-  padding: 8px 16px;
-}
-
-.btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.btn-primary {
-  background: #3b82f6;
-  color: #fff;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: #2563eb;
-}
-
-.btn-outline {
-  background: transparent;
-  border: 1px solid #cbd5e1;
-  color: #475569;
-}
-
-.btn-outline:hover {
-  background: #f1f5f9;
-  border-color: #94a3b8;
-}
-
-.btn-success {
-  background: #10b981;
-  color: #fff;
-}
-
-.btn-success:hover {
-  background: #059669;
-}
-
-.btn-danger {
-  background: #ef4444;
-  color: #fff;
-}
-
-.btn-danger:hover {
-  background: #dc2626;
-}
+.empty-content p { color: #64748b; }
 </style>

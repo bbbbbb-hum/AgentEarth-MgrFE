@@ -1,7 +1,8 @@
 <template>
   <div class="schema-form">
     <div v-if="!schema || !schema.properties" class="no-params">
-      此工具无需参数
+      <span class="no-params-icon">✨</span>
+      此工具无需任何参数配置，可直接运行。
     </div>
     <div v-else class="form-fields">
       <div 
@@ -9,46 +10,54 @@
         :key="propName"
         class="form-field"
       >
-        <label class="field-label">
-          {{ propName }}
-          <span v-if="isRequired(propName)" class="required">*</span>
-        </label>
+        <div class="field-header">
+          <label class="field-label">
+            {{ propName }}
+            <span v-if="isRequired(propName)" class="required" title="必填">*</span>
+          </label>
+          <div class="field-type-badge">{{ propSchema.type }}</div>
+        </div>
+        
         <div class="field-description" v-if="propSchema.description">
           {{ propSchema.description }}
         </div>
         
         <!-- String 类型 -->
-        <input
-          v-if="propSchema.type === 'string' && !propSchema.enum"
-          type="text"
-          class="field-input"
-          :placeholder="getPlaceholder(propSchema)"
-          v-model="formData[propName]"
-        />
+        <div class="input-wrapper" v-if="propSchema.type === 'string' && !propSchema.enum">
+          <input
+            type="text"
+            class="field-input"
+            :placeholder="getPlaceholder(propSchema)"
+            v-model="formData[propName]"
+          />
+        </div>
         
         <!-- Enum 类型 (下拉选择) -->
-        <select
-          v-else-if="propSchema.enum"
-          class="field-input"
-          v-model="formData[propName]"
-        >
-          <option value="">请选择...</option>
-          <option v-for="opt in propSchema.enum" :key="opt" :value="opt">
-            {{ opt }}
-          </option>
-        </select>
+        <div class="select-wrapper" v-else-if="propSchema.enum">
+          <select
+            class="field-input field-select"
+            v-model="formData[propName]"
+          >
+            <option value="">请选择...</option>
+            <option v-for="opt in propSchema.enum" :key="opt" :value="opt">
+              {{ opt }}
+            </option>
+          </select>
+          <span class="select-arrow">▼</span>
+        </div>
         
         <!-- Number / Integer 类型 -->
-        <input
-          v-else-if="propSchema.type === 'number' || propSchema.type === 'integer'"
-          type="number"
-          class="field-input"
-          :placeholder="getPlaceholder(propSchema)"
-          :min="propSchema.minimum"
-          :max="propSchema.maximum"
-          :step="propSchema.type === 'integer' ? 1 : 'any'"
-          v-model.number="formData[propName]"
-        />
+        <div class="input-wrapper" v-else-if="propSchema.type === 'number' || propSchema.type === 'integer'">
+          <input
+            type="number"
+            class="field-input"
+            :placeholder="getPlaceholder(propSchema)"
+            :min="propSchema.minimum"
+            :max="propSchema.maximum"
+            :step="propSchema.type === 'integer' ? 1 : 'any'"
+            v-model.number="formData[propName]"
+          />
+        </div>
         
         <!-- Boolean 类型 -->
         <label v-else-if="propSchema.type === 'boolean'" class="switch-label">
@@ -57,57 +66,65 @@
             class="switch-input"
             v-model="formData[propName]"
           />
-          <span class="switch-slider"></span>
-          <span class="switch-text">{{ formData[propName] ? '是' : '否' }}</span>
+          <div class="switch-track">
+            <span class="switch-thumb"></span>
+          </div>
+          <span class="switch-text">{{ formData[propName] ? '开启 (True)' : '关闭 (False)' }}</span>
         </label>
         
         <!-- Array 类型 -->
         <div v-else-if="propSchema.type === 'array'" class="array-field">
-          <div 
-            v-for="(item, index) in (formData[propName] || [])" 
-            :key="index"
-            class="array-item"
-          >
-            <input
-              type="text"
-              class="field-input array-input"
-              v-model="formData[propName][index]"
-              :placeholder="`第 ${index + 1} 项`"
-            />
-            <button 
-              type="button" 
-              class="btn-icon btn-remove"
-              @click="removeArrayItem(propName, index)"
+          <div class="array-list">
+            <div 
+              v-for="(item, index) in (formData[propName] || [])" 
+              :key="index"
+              class="array-item"
             >
-              ×
-            </button>
+              <span class="array-index">{{ index + 1 }}</span>
+              <input
+                type="text"
+                class="field-input array-input"
+                v-model="formData[propName][index]"
+                :placeholder="`输入第 ${index + 1} 项的值`"
+              />
+              <button 
+                type="button" 
+                class="btn-icon btn-remove"
+                @click="removeArrayItem(propName, index)"
+                title="移除此项"
+              >
+                ×
+              </button>
+            </div>
           </div>
           <button 
             type="button" 
-            class="btn btn-sm btn-add"
+            class="btn-dashed btn-add"
             @click="addArrayItem(propName)"
           >
-            + 添加项
+            <span class="plus-icon">+</span> 添加项
           </button>
         </div>
         
         <!-- Object 类型 (JSON编辑器) -->
-        <textarea
-          v-else-if="propSchema.type === 'object'"
-          class="field-input field-textarea"
-          :placeholder="getPlaceholder(propSchema)"
-          v-model="formData[propName]"
-          rows="4"
-        ></textarea>
+        <div class="input-wrapper" v-else-if="propSchema.type === 'object'">
+          <textarea
+            class="field-input field-textarea"
+            :placeholder="getPlaceholder(propSchema)"
+            v-model="formData[propName]"
+            rows="5"
+          ></textarea>
+        </div>
         
         <!-- 其他类型 (默认文本输入) -->
-        <input
-          v-else
-          type="text"
-          class="field-input"
-          :placeholder="getPlaceholder(propSchema)"
-          v-model="formData[propName]"
-        />
+        <div class="input-wrapper" v-else>
+          <input
+            type="text"
+            class="field-input"
+            :placeholder="getPlaceholder(propSchema)"
+            v-model="formData[propName]"
+          />
+        </div>
       </div>
     </div>
   </div>
@@ -163,7 +180,7 @@ const isRequired = (propName: string): boolean => {
 const getPlaceholder = (propSchema: JSONSchema): string => {
   if (propSchema.description) return propSchema.description;
   if (propSchema.type === 'object') return '请输入JSON格式数据';
-  return `请输入${propSchema.type || '值'}`;
+  return `请输入 ${propSchema.type || '值'}`;
 };
 
 // 数组操作
@@ -215,24 +232,39 @@ onMounted(() => {
 
 .no-params {
   color: #64748b;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   text-align: center;
-  padding: 32px;
+  padding: 40px;
   background: #f8fafc;
-  border-radius: 8px;
+  border-radius: 16px;
   border: 1px dashed #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.no-params-icon {
+  font-size: 2rem;
+  margin-bottom: 4px;
 }
 
 .form-fields {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 24px;
 }
 
 .form-field {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.field-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .field-label {
@@ -246,40 +278,78 @@ onMounted(() => {
 .required {
   color: #ef4444;
   margin-left: 4px;
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.field-type-badge {
+  font-size: 0.7rem;
+  color: #94a3b8;
+  background: #f1f5f9;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: monospace;
 }
 
 .field-description {
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   color: #64748b;
+  line-height: 1.5;
   margin-bottom: 4px;
-  line-height: 1.4;
 }
 
+/* 输入框通用样式 */
 .field-input {
-  padding: 10px 14px;
+  width: 100%;
+  padding: 12px 16px;
   border: 1px solid #cbd5e1;
-  border-radius: 8px;
+  border-radius: 10px;
   font-size: 0.95rem;
-  transition: all 0.2s ease;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   background: #fff;
   color: #1e293b;
+  box-sizing: border-box;
 }
 
 .field-input:hover {
   border-color: #94a3b8;
+  background: #f8fafc;
 }
 
 .field-input:focus {
   outline: none;
   border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+  background: #fff;
 }
 
 .field-textarea {
   resize: vertical;
-  min-height: 100px;
+  min-height: 120px;
   font-family: 'Fira Code', monospace;
   font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+/* Select 样式 */
+.select-wrapper {
+  position: relative;
+}
+
+.field-select {
+  appearance: none;
+  padding-right: 40px;
+  cursor: pointer;
+}
+
+.select-arrow {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #64748b;
+  font-size: 0.8rem;
+  pointer-events: none;
 }
 
 /* Switch 样式 */
@@ -288,41 +358,41 @@ onMounted(() => {
   align-items: center;
   gap: 12px;
   cursor: pointer;
-  padding: 4px 0;
+  padding: 8px 0;
+  user-select: none;
 }
 
 .switch-input {
   display: none;
 }
 
-.switch-slider {
-  width: 48px;
-  height: 26px;
+.switch-track {
+  width: 44px;
+  height: 24px;
   background: #cbd5e1;
-  border-radius: 13px;
+  border-radius: 12px;
   position: relative;
-  transition: background 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.switch-slider::after {
-  content: '';
+.switch-thumb {
   position: absolute;
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   background: white;
   border-radius: 50%;
   top: 2px;
   left: 2px;
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-.switch-input:checked + .switch-slider {
+.switch-input:checked + .switch-track {
   background: #3b82f6;
 }
 
-.switch-input:checked + .switch-slider::after {
-  transform: translateX(22px);
+.switch-input:checked + .switch-track .switch-thumb {
+  transform: translateX(20px);
 }
 
 .switch-text {
@@ -335,22 +405,48 @@ onMounted(() => {
 .array-field {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
+}
+
+.array-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .array-item {
   display: flex;
   gap: 10px;
   align-items: center;
+  background: #f8fafc;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid #f1f5f9;
+}
+
+.array-index {
+  font-size: 0.8rem;
+  color: #94a3b8;
+  font-weight: 600;
+  width: 20px;
+  text-align: center;
 }
 
 .array-input {
   flex: 1;
+  border: 1px solid transparent;
+  background: transparent;
+  padding: 8px;
+}
+
+.array-input:focus {
+  background: #fff;
+  border-color: #3b82f6;
 }
 
 .btn-icon {
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   border: none;
   border-radius: 8px;
   cursor: pointer;
@@ -359,33 +455,39 @@ onMounted(() => {
   justify-content: center;
   font-size: 1.2rem;
   transition: all 0.2s;
+  background: transparent;
+  color: #cbd5e1;
 }
 
-.btn-remove {
+.btn-remove:hover {
   background: #fee2e2;
   color: #ef4444;
 }
 
-.btn-remove:hover {
-  background: #fecaca;
-  color: #dc2626;
-}
-
-.btn-add {
-  background: #eff6ff;
-  color: #2563eb;
+.btn-dashed {
+  background: #fff;
+  color: #3b82f6;
   border: 1px dashed #bfdbfe;
-  padding: 8px 16px;
+  padding: 10px 16px;
   border-radius: 8px;
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   cursor: pointer;
-  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   transition: all 0.2s;
   font-weight: 500;
 }
 
-.btn-add:hover {
-  background: #dbeafe;
-  border-color: #93c5fd;
+.btn-dashed:hover {
+  background: #eff6ff;
+  border-color: #3b82f6;
+  transform: translateY(-1px);
+}
+
+.plus-icon {
+  font-size: 1.1rem;
+  font-weight: bold;
 }
 </style>
