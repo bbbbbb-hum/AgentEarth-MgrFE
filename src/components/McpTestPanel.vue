@@ -1,5 +1,5 @@
 <template>
-  <div class="mcp-test-panel">
+  <div class="mcp-test-panel" :class="{ 'focus-mode': focusMode }">
     <div class="panel-header">
       <div class="header-left">
         <div class="icon-wrapper">
@@ -80,14 +80,22 @@
       </div>
 
       <div class="work-area" ref="workAreaEl" :style="{ '--drawerHeight': (bottomCollapsed ? 44 : drawerHeight) + 'px' }">
-        <div class="runner" :class="{ 'result-collapsed': resultCollapsed }">
+        <div
+          class="runner"
+          ref="runnerEl"
+          :class="{ 'result-collapsed': resultCollapsed, 'params-collapsed': paramsCollapsed }"
+          :style="{ '--resultHeight': (resultCollapsed ? 44 : resultHeight) + 'px' }"
+        >
           <template v-if="selectedTool">
-            <div class="runner-header">
+            <div class="runner-header" ref="runnerHeaderEl">
               <div class="runner-title">
                 <div class="tool-title">{{ selectedTool.name }}</div>
                 <div class="tool-desc" v-if="selectedTool.description">{{ selectedTool.description }}</div>
               </div>
               <div class="runner-actions">
+                <button class="btn btn-light" type="button" @click="paramsCollapsed = !paramsCollapsed">
+                  {{ paramsCollapsed ? '展开参数' : '收起参数' }}
+                </button>
                 <button class="btn btn-light" type="button" @click="copyInput">复制输入</button>
                 <button class="btn btn-light" type="button" @click="clearInput">清空参数</button>
                 <button class="btn btn-primary" type="button" @click="executeTool" :disabled="calling || connectionStatus !== 'connected'">
@@ -96,9 +104,14 @@
               </div>
             </div>
 
-            <div class="runner-body custom-scrollbar">
+            <div v-if="!paramsCollapsed" class="runner-body custom-scrollbar">
               <div class="section-title">参数</div>
+              <div class="schema-hint">{{ schemaHint }}</div>
               <SchemaForm :schema="selectedTool.inputSchema" v-model="toolArguments" />
+            </div>
+
+            <div v-if="!paramsCollapsed && !resultCollapsed" class="runner-inner-splitter" @pointerdown="startResultResize">
+              <div class="runner-inner-grip"></div>
             </div>
 
             <div class="runner-result">
@@ -118,6 +131,9 @@
                   <button class="btn btn-light btn-sm" type="button" @click="resultCollapsed = !resultCollapsed">
                     {{ resultCollapsed ? '展开' : '收起' }}
                   </button>
+                  <button class="btn btn-light btn-sm" type="button" @click="toggleFocus">
+                    {{ focusMode ? '退出最大化' : '结果最大化' }}
+                  </button>
                 </div>
               </div>
               <div v-if="!resultCollapsed" class="result-body custom-scrollbar">
@@ -130,6 +146,7 @@
 
           <div v-else class="runner-empty">
             <div class="empty-title">右侧将展示工具参数</div>
+            <div class="empty-sub">状态：{{ statusText }} · 工具数：{{ tools.length }}</div>
             <div class="empty-sub">请先连接服务，然后从左侧工具列表选择一个工具</div>
           </div>
         </div>
@@ -208,12 +225,17 @@ const toolArguments = ref<Record<string, any>>({});
 const callResult = ref<CallResponse | null>(null);
 const resultView = ref<'structured' | 'raw'>('structured');
 const resultCollapsed = ref(false);
+const paramsCollapsed = ref(false);
+const focusMode = ref(false);
 const toolQuery = ref('');
 
 const bottomTab = ref<'history' | 'events'>('history');
 const bottomCollapsed = ref(true);
 const drawerHeight = ref(280);
 const workAreaEl = ref<HTMLDivElement | null>(null);
+const runnerEl = ref<HTMLDivElement | null>(null);
+const runnerHeaderEl = ref<HTMLDivElement | null>(null);
+const resultHeight = ref(320);
 
 const history = ref<HistoryEntry[]>([]);
 const events = ref<NotifyEntry[]>([]);
@@ -222,11 +244,24 @@ const resizing = ref(false);
 const resizeStartY = ref(0);
 const resizeStartHeight = ref(0);
 const activePointerId = ref<number | null>(null);
+const resizingResult = ref(false);
+const resultStartY = ref(0);
+const resultStartHeight = ref(0);
+const activeResultPointerId = ref<number | null>(null);
 
 try {
   const stored = Number(localStorage.getItem('mcpTestPanel.drawerHeight'));
   if (Number.isFinite(stored) && stored >= 120 && stored <= 520) {
     drawerHeight.value = stored;
+  }
+} catch {
+  // ignore
+}
+
+try {
+  const stored = Number(localStorage.getItem('mcpTestPanel.resultHeight'));
+  if (Number.isFinite(stored) && stored >= 140 && stored <= 800) {
+    resultHeight.value = stored;
   }
 } catch {
   // ignore
@@ -257,6 +292,15 @@ const filteredTools = computed(() => {
     const d = (t.description || '').toLowerCase();
     return n.includes(q) || d.includes(q);
   });
+});
+
+const schemaHint = computed(() => {
+  const schema = selectedTool.value?.inputSchema as any;
+  if (!schema) return 'Schema：无';
+  const props = schema?.properties;
+  const count = props && typeof props === 'object' ? Object.keys(props).length : 0;
+  if (!props) return 'Schema：无参数';
+  return `Schema：${count} 个字段`;
 });
 
 watch(
@@ -312,8 +356,54 @@ const startResize = (e: PointerEvent) => {
   window.addEventListener('pointercancel', stopResize);
 };
 
+const clampResultHeight = (value: number) => {
+  const minResult = 160;
+  const minParams = 220;
+  const splitter = 12;
+  const header = runnerHeaderEl.value?.clientHeight ?? 60;
+  const container = runnerEl.value?.clientHeight ?? 600;
+  const maxResult = Math.max(minResult, container - header - splitter - minParams);
+  return Math.max(minResult, Math.min(maxResult, value));
+};
+
+const onResultPointerMove = (e: PointerEvent) => {
+  if (!resizingResult.value) return;
+  if (activeResultPointerId.value !== null && e.pointerId !== activeResultPointerId.value) return;
+  const dy = resultStartY.value - e.clientY;
+  const next = resultStartHeight.value + dy;
+  resultHeight.value = clampResultHeight(next);
+};
+
+const stopResultResize = () => {
+  if (!resizingResult.value) return;
+  resizingResult.value = false;
+  window.removeEventListener('pointermove', onResultPointerMove);
+  window.removeEventListener('pointerup', stopResultResize);
+  window.removeEventListener('pointercancel', stopResultResize);
+  activeResultPointerId.value = null;
+  try {
+    localStorage.setItem('mcpTestPanel.resultHeight', String(resultHeight.value));
+  } catch {
+    // ignore
+  }
+};
+
+const startResultResize = (e: PointerEvent) => {
+  e.preventDefault();
+  if (resultCollapsed.value) resultCollapsed.value = false;
+  if (paramsCollapsed.value) paramsCollapsed.value = false;
+  resizingResult.value = true;
+  resultStartY.value = e.clientY;
+  resultStartHeight.value = resultHeight.value;
+  activeResultPointerId.value = e.pointerId;
+  window.addEventListener('pointermove', onResultPointerMove);
+  window.addEventListener('pointerup', stopResultResize);
+  window.addEventListener('pointercancel', stopResultResize);
+};
+
 onBeforeUnmount(() => {
   stopResize();
+  stopResultResize();
 });
 
 const addEvent = (level: NotifyLevel, message: string, payload?: any) => {
@@ -392,6 +482,8 @@ const selectTool = (tool: McpTool) => {
   callResult.value = null;
   resultView.value = 'structured';
   resultCollapsed.value = false;
+  paramsCollapsed.value = false;
+  addEvent('info', `选择工具：${tool.name}`);
 };
 
 // 执行工具
@@ -438,6 +530,18 @@ const executeTool = async () => {
     );
   } finally {
     calling.value = false;
+  }
+};
+
+const toggleFocus = () => {
+  focusMode.value = !focusMode.value;
+  if (focusMode.value) {
+    bottomCollapsed.value = true;
+    resultCollapsed.value = false;
+    paramsCollapsed.value = true;
+    resultHeight.value = clampResultHeight(9999);
+  } else {
+    paramsCollapsed.value = false;
   }
 };
 
@@ -655,6 +759,10 @@ const confirmTest = async (status: number) => {
   background: #f8fafc;
 }
 
+.mcp-test-panel.focus-mode .sidebar {
+  display: none;
+}
+
 .sidebar {
   width: 320px;
   flex-shrink: 0;
@@ -846,11 +954,15 @@ const confirmTest = async (status: number) => {
   background: #fff;
   overflow: hidden;
   display: grid;
-  grid-template-rows: auto 1fr 240px;
+  grid-template-rows: auto 1fr 12px var(--resultHeight);
 }
 
 .runner.result-collapsed {
-  grid-template-rows: auto 1fr 44px;
+  grid-template-rows: auto 1fr 0px 44px;
+}
+
+.runner.params-collapsed {
+  grid-template-rows: auto 0px 0px var(--resultHeight);
 }
 
 .runner-header {
@@ -890,6 +1002,43 @@ const confirmTest = async (status: number) => {
   padding: 14px 16px 18px;
   overflow: auto;
   min-height: 0;
+}
+
+.schema-hint {
+  margin: -4px 0 12px;
+  color: #94a3b8;
+  font-size: 0.82rem;
+}
+
+.runner-inner-splitter {
+  height: 12px;
+  cursor: row-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  touch-action: none;
+  background: #fff;
+  border-top: 1px solid #e2e8f0;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.runner-inner-splitter:hover {
+  background: rgba(59, 130, 246, 0.06);
+}
+
+.runner-inner-grip {
+  width: 56px;
+  height: 4px;
+  border-radius: 999px;
+  background: #cbd5e1;
+  box-shadow: 0 -6px 0 #cbd5e1, 0 6px 0 #cbd5e1;
+  opacity: 0.85;
+}
+
+.runner-inner-splitter:hover .runner-inner-grip {
+  background: #93c5fd;
+  box-shadow: 0 -6px 0 #93c5fd, 0 6px 0 #93c5fd;
 }
 
 .section-title {
