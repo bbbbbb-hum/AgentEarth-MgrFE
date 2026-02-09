@@ -256,14 +256,7 @@ const toolArguments = ref<Record<string, any>>({});
 const callResult = ref<CallResponse | null>(null);
 const resultSectionEl = ref<HTMLElement | null>(null);
 const resultView = ref<'structured' | 'raw'>('structured');
-const normalizedContent = computed(() => {
-  const c = callResult.value?.content;
-  // 后端可能多包一层 { content: [...] }，需解包
-  if (c && !Array.isArray(c) && Array.isArray(c.content)) {
-    return c.content;
-  }
-  return c;
-});
+const normalizedContent = computed(() => callResult.value?.content);
 const focusMode = ref(false);
 const toolQuery = ref('');
 
