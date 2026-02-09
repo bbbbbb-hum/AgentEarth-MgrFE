@@ -18,8 +18,7 @@
       </div>
       <div class="header-right">
         <div class="header-connection">
-          <span v-if="connectResult?.server_info" class="conn-kv server">
-            <span class="conn-label">Server</span>
+          <span v-if="connectionStatus === 'connected'" class="conn-kv server">
             <span class="conn-value">{{ wemcpName }}</span>
           </span>
           <span class="conn-kv timeout">
@@ -209,13 +208,7 @@
       </div>
 
     <div class="panel-footer" v-if="connectionStatus === 'connected'">
-      <div class="footer-left">
-        <div class="server-info-pill" v-if="connectResult?.server_info">
-          <span class="status-indicator online"></span>
-          <span class="server-name">{{ connectResult.server_info.name }}</span>
-          <span class="server-version">v{{ connectResult.server_info.version }}</span>
-        </div>
-      </div>
+      <div class="footer-left"></div>
       <div class="footer-actions">
         <button class="btn btn-text" @click="$emit('close')">关闭</button>
         <div class="action-group">
