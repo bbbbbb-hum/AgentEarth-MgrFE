@@ -115,6 +115,140 @@ interface FundChangeRecord {
   batch_status?: string;
 }
 
+// 批次剩余额度展示辅助：
+// - 后端 remaining_amount 保持真实值（可为负，表示透支）
+// - 无快照 / 有快照对 totalBalance 一致，这里从 fundChangeRecords 全量视角重算“展示用余额”
+// - 如果全局余额 >= 0：在展示层做一次“虚拟调账”，用新批次填补老批次的透支，
+//   让老批次展示为 0，新批次展示为逻辑上的“真实可用余额”
+// - 如果全局余额 < 0：保留原始透支展示（负余额 + 透支标签）
+const getRemainingDisplay = (record: FundChangeRecord) => {
+  const init = record.initial_amount ?? 0; // ??表示如果左边是null 或 undefined，就用右边的值
+  const rawRemain = record.remaining_amount ?? 0; // 后端计算出来的真实剩余额度，可以为负数表示透支
+
+  // 没有批次信息或初始金额 <= 0 时，直接按当前批次展示（防御性处理）
+  if (!record.batch_id || init <= 0) {
+    const displayRemainRaw = Math.max(rawRemain, 0);
+    const overdraftRaw = rawRemain < 0 ? -rawRemain : 0; //如果真实余额为-50，就加负号展示为50
+    const percentRaw = init > 0 ? Math.round((displayRemainRaw / init) * 100) : 0; //计算剩余金额占初始金额的百分比
+    return { displayRemain: displayRemainRaw, overdraft: overdraftRaw, percent: percentRaw }; //返回展示用剩余额度、透支金额、百分比
+  }
+
+  // 收集所有充值批次（仅 initial_amount > 0）
+  const batches = fundChangeRecords.value.filter(r => r.initial_amount != null && r.initial_amount > 0);
+
+  // 工具函数：解析过期时间字符串（YYYY-MM-DD 或 "永久有效"）
+  const parseExpire = (expire?: string): Date | null => {
+    if (!expire || expire === '永久有效') return null;
+    const d = new Date(expire);
+    return isNaN(d.getTime()) ? null : d;
+  };
+
+  // 工具函数：解析交易时间（"2026-02-08 00:00:00"）
+  const parsePayTime = (timeStr: string): Date | null => {
+    if (!timeStr) return null;
+    // 替换空格为 T，避免部分环境下解析失败
+    const d = new Date(timeStr.replace(' ', 'T'));
+    return isNaN(d.getTime()) ? null : d;
+  };
+
+  const items = batches.map(b => ({
+    id: b.batch_id as number,
+    remain: b.remaining_amount ?? 0,
+    initial: b.initial_amount as number,
+    expire: parseExpire(b.expire_time),
+    payTime: parsePayTime(b.transaction_time),
+  }));
+
+  // 全局真实余额 = 所有批次实时余额之和
+  const totalReal = items.reduce((sum, b) => sum + b.remain, 0);
+
+  // 如果全局余额仍为负数：保留原始透支展示（不做虚拟调账）
+  if (totalReal < 0) {
+    const displayRemainRaw = Math.max(rawRemain, 0);
+    const overdraftRaw = rawRemain < 0 ? -rawRemain : 0;
+    const percentRaw = init > 0 ? Math.round((displayRemainRaw / init) * 100) : 0;
+    return { displayRemain: displayRemainRaw, overdraft: overdraftRaw, percent: percentRaw };
+  }
+
+  // 全局余额 >= 0：在展示层进行“虚拟填补透支”
+  // 1. 计算总透支债务
+  let debt = items
+    .filter(b => b.remain < 0) //把所有余额为负的批次挑出来，表示这些批次存在透支
+    .reduce((sum, b) => sum + (-b.remain), 0); //对于每个负批次，把-b.remain加起来，得到总透支债务
+
+  // 2. 正余额批次按 FEFO 顺序填补透支：先按过期时间升序，再按支付时间升序
+  const positives = items
+    .filter(b => b.remain > 0)
+    .sort((a, b) => {
+      // 先按过期时间升序：有过期时间的在前，永久有效在后
+      const ea = a.expire ? a.expire.getTime() : Number.POSITIVE_INFINITY;
+      const eb = b.expire ? b.expire.getTime() : Number.POSITIVE_INFINITY;
+      if (ea !== eb) return ea - eb;
+
+      // 过期时间相同或都无过期：按支付时间升序
+      const pa = a.payTime ? a.payTime.getTime() : Number.POSITIVE_INFINITY;
+      const pb = b.payTime ? b.payTime.getTime() : Number.POSITIVE_INFINITY;
+      if (pa !== pb) return pa - pb;
+
+      // 再退一步，用 batch id 升序稳定排序
+      return a.id - b.id;
+    });
+
+  const virtualMap: Record<number, number> = {}; //key是批次id，value是展示用剩余额度
+
+  // 负余额批次：展示为 0（透支已被全局新充值填补）
+  items
+    .filter(b => b.remain <= 0) //把所有余额为0或负的批次挑出来，表示这些批次存在透支
+    .forEach(b => { 
+      virtualMap[b.id] = 0; //对于每个透支批次，展示用剩余额度为0
+    });
+
+  // 正余额批次：按顺序用自身余额去填补“历史欠账”
+  for (const b of positives) { //遍历每一个正余额批次b
+    if (debt <= 0) { //如果总透支债务为0，则直接用当前批次余额作为展示用剩余额度
+      virtualMap[b.id] = b.remain;
+      continue;
+    }
+    const use = Math.min(b.remain, debt); //用当前批次余额和总透支债务中的较小值作为填补金额，够扣就扣掉债务，不够扣就全扣
+    virtualMap[b.id] = b.remain - use;
+    debt -= use;
+  }
+
+  const virtualRemain = virtualMap[record.batch_id] ?? rawRemain;
+  const displayRemain = Math.max(virtualRemain, 0);
+  const percent = init > 0 ? Math.round((displayRemain / init) * 100) : 0;
+
+  // 全局余额已经为非负，说明透支已被新充值整体填平：不再按批次展示透支标签
+  return { displayRemain, overdraft: 0, percent };
+};
+
+// 批次状态展示辅助：
+// - 后端 batch_status 反映物理账本状态
+// - 当前端做了“虚拟填补透支”后，如果展示用剩余额度为 0，则将状态统一展示为“已耗尽”
+// - “已过期”状态始终优先，不受虚拟填补影响
+const getBatchStatusDisplay = (record: FundChangeRecord): string => {
+  if (!record.batch_status) return '';
+  // 已过期：直接使用后端状态
+  if (record.batch_status === '已过期') return record.batch_status;
+  // 非充值批次或无初始金额：保持后端原始状态
+  if (!record.batch_id || !record.initial_amount || record.initial_amount <= 0) {
+    return record.batch_status;
+  }
+  const { displayRemain } = getRemainingDisplay(record);
+  if (displayRemain <= 0) {
+    return '已耗尽';
+  }
+  return '使用中';
+};
+
+const getBatchStatusClass = (record: FundChangeRecord): string => {
+  const status = getBatchStatusDisplay(record);
+  if (status === '使用中') return 'batch-status-active';
+  if (status === '已耗尽') return 'batch-status-exhausted';
+  if (status === '已过期') return 'batch-status-expired';
+  return '';
+};
+
 // 状态
 const loading = ref(true);
 const userDetail = ref<UserDetail | null>(null);
@@ -175,16 +309,17 @@ const displayBalance = ref(0);
 const targetBalance = ref(0);
 const isBalanceAnimating = ref(false);
 
-// 服务端分页：total 来自接口返回，list 为当前页数据
-const totalRecordCount = ref(0);
+const totalRecordCount = computed(() => fundChangeRecords.value.length);
 const totalRecordPages = computed(() => Math.max(1, Math.ceil(totalRecordCount.value / recordPageSize.value)));
 const recordPageStart = computed(() => {
   if (totalRecordCount.value === 0) return 0;
   return (recordPage.value - 1) * recordPageSize.value + 1;
 });
 const recordPageEnd = computed(() => Math.min(totalRecordCount.value, recordPage.value * recordPageSize.value));
-// 服务端分页时，fundChangeRecords 已是当前页数据，直接使用
-const pagedFundChangeRecords = computed(() => fundChangeRecords.value);
+const pagedFundChangeRecords = computed(() => {
+  const start = (recordPage.value - 1) * recordPageSize.value;
+  return fundChangeRecords.value.slice(start, start + recordPageSize.value);
+});
 
 const clampRecordPage = (page: number) => {
   return Math.min(Math.max(1, page), totalRecordPages.value);
@@ -207,13 +342,11 @@ const setSuccessToast = (title: string, message: string, durationMs = 3000) => {
 const goToRecordPage = (page: number) => {
   recordPage.value = clampRecordPage(page);
   recordPageInput.value = recordPage.value;
-  fetchFundChangeRecords();
 };
 
 const changeRecordPageSize = (size: number) => {
   recordPageSize.value = size;
   resetRecordPaging();
-  fetchFundChangeRecords();
 };
 
 const jumpToRecordPage = () => {
@@ -336,7 +469,7 @@ const fetchBalanceHistory = async () => {
   }
 };
 
-// 获取资金变动明细（服务端分页）
+// 获取资金变动明细
 const fetchFundChangeRecords = async () => {
   try {
     const params = new URLSearchParams();
@@ -344,16 +477,13 @@ const fetchFundChangeRecords = async () => {
     if (chargeTypeFilter.value > 0) {
       params.append('charge_type', chargeTypeFilter.value.toString());
     }
-    params.append('page', recordPage.value.toString());
-    params.append('page_size', recordPageSize.value.toString());
     const response = await fetch(`${apiBaseUrl}api/userfund/user/${userId.value}/fund-changes?${params.toString()}`, {
       headers: getAuthHeaders(),
       credentials: 'include',
     });
     if (!response.ok) throw new Error('Failed to fetch fund change records');
-    const data: { list: FundChangeRecord[]; total: number } = await response.json();
+    const data: { list: FundChangeRecord[] } = await response.json();
     fundChangeRecords.value = data.list || [];
-    totalRecordCount.value = data.total ?? 0;
     recordPage.value = clampRecordPage(recordPage.value);
     recordPageInput.value = recordPage.value;
   } catch (error) {
@@ -1116,12 +1246,8 @@ const nextStepDeduction = () => {
     alert('请输入扣减金额');
     return;
   }
-  // 检查余额是否足够
-  const currentBalance = displayBalance.value || userDetail.value?.current_balance || 0;
-  if (currentBalance < deductionAmount.value) {
-    alert('余额不足，无法扣减');
-    return;
-  }
+  // 不在前端做“余额不足”强校验，交由后端统一根据快照+增量逻辑校验，
+  // 避免在测试场景下前端对旧余额的本地判断与后端真实余额不一致。
   showDeductionModal.value = false;
   showDeductionConfirmModal.value = true;
 };
@@ -1653,17 +1779,28 @@ onUnmounted(() => {
                       <div class="remaining-hint">过期时剩余</div>
                     </div>
                   </template>
-                  <!-- 使用中/已耗尽：展示当前剩余额度 -->
+                  <!-- 使用中/已耗尽：展示当前剩余额度（负值时显示为 0，并额外标红透支标签） -->
                   <div v-else class="remaining-compact">
+                    <!-- 透支标签：放在数值上方 -->
+                    <div
+                      v-if="getRemainingDisplay(record).overdraft > 0"
+                      class="remaining-overdraft-tag"
+                    >
+                      透支 {{ formatCurrency(getRemainingDisplay(record).overdraft) }}
+                    </div>
                     <div class="remaining-row-top">
-                      <span class="remaining-val">{{ formatCurrency(record.remaining_amount ?? 0) }}</span>
-                      <span class="remaining-percent">{{ record.initial_amount > 0 ? Math.round(((record.remaining_amount ?? 0) / record.initial_amount) * 100) : 0 }}%</span>
+                      <span class="remaining-val">
+                        {{ formatCurrency(getRemainingDisplay(record).displayRemain) }}
+                      </span>
+                      <span class="remaining-percent">
+                        {{ getRemainingDisplay(record).percent }}%
+                      </span>
                     </div>
                     <div class="remaining-progress-bg">
                       <div 
                         class="remaining-progress-fill" 
-                        :style="{ width: Math.min(100, ((record.remaining_amount ?? 0) / record.initial_amount) * 100) + '%' }"
-                        :class="{ 'bar-empty': (record.remaining_amount ?? 0) <= 0 }"
+                        :style="{ width: getRemainingDisplay(record).percent + '%' }"
+                        :class="{ 'bar-empty': getRemainingDisplay(record).percent <= 0 }"
                       ></div>
                     </div>
                   </div>
@@ -1678,13 +1815,9 @@ onUnmounted(() => {
                 <span 
                   v-if="record.batch_status" 
                   class="batch-status-badge"
-                  :class="{
-                    'batch-status-active': record.batch_status === '使用中',
-                    'batch-status-exhausted': record.batch_status === '已耗尽',
-                    'batch-status-expired': record.batch_status === '已过期'
-                  }"
+                  :class="getBatchStatusClass(record)"
                 >
-                  {{ record.batch_status }}
+                  {{ getBatchStatusDisplay(record) }}
                 </span>
                 <span v-else>-</span>
               </td>
@@ -2939,6 +3072,17 @@ onUnmounted(() => {
 }
 .remaining-at-expire-label {
   color: #6b7280;
+}
+.remaining-overdraft-tag {
+  margin-bottom: 4px;
+  align-self: flex-start;
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: #fecaca; /* 更亮的红色背景 */
+  color: #ef4444;      /* 更鲜艳的红色文字 */
+  font-size: 11px;
+  font-weight: 500;
 }
 .remaining-cell .remaining-hint {
   font-size: 11px;
