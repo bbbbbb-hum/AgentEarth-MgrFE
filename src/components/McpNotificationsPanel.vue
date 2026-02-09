@@ -8,13 +8,17 @@
           <span class="time">{{ formatTime(e.ts) }}</span>
         </div>
         <div class="msg">{{ e.message }}</div>
-        <pre v-if="e.payload !== undefined" class="payload">{{ formatJson(e.payload) }}</pre>
+        <div v-if="e.payload !== undefined" class="payload-wrap">
+          <JsonView :data="e.payload" :is-error="e.level === 'error'" :with-border="false" />
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import JsonView from './JsonView.vue';
+
 export type NotifyLevel = 'info' | 'warn' | 'error';
 
 export interface NotifyEntry {
@@ -43,13 +47,6 @@ const levelText = (level: NotifyLevel) => {
   return '信息';
 };
 
-const formatJson = (value: any) => {
-  try {
-    return JSON.stringify(value, null, 2);
-  } catch {
-    return String(value);
-  }
-};
 </script>
 
 <style scoped>
@@ -117,17 +114,13 @@ const formatJson = (value: any) => {
   line-height: 1.5;
 }
 
-.payload {
+.payload-wrap {
   margin: 8px 0 0;
   padding: 10px;
   border-radius: 10px;
-  background: #0b1220;
-  color: #e2e8f0;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  font-size: 0.8rem;
-  white-space: pre-wrap;
-  word-break: break-word;
-  max-height: 240px;
+  border: 1px solid #e2e8f0;
+  background: #fafafa;
+  max-height: 280px;
   overflow: auto;
 }
 

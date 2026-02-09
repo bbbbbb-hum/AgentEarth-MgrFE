@@ -15,7 +15,8 @@
               <span class="badge-icon">📝</span>
               <span>文本</span>
             </div>
-            <pre class="text-body">{{ tryFormatJson(item.text) }}</pre>
+            <JsonView v-if="isJsonString(item.text)" :data="item.text" :is-error="isError" :with-border="false" />
+            <pre v-else class="text-body">{{ item.text }}</pre>
           </div>
         </template>
         
@@ -86,7 +87,7 @@
               <span class="badge-icon">❓</span>
               <span>{{ item.type || '未知类型' }}</span>
             </div>
-            <pre class="json-body">{{ formatJson(item) }}</pre>
+            <JsonView :data="item" :is-error="isError" :with-border="false" />
           </div>
         </template>
       </div>
@@ -99,7 +100,7 @@
           <span class="badge-icon">📄</span>
           <span>原始数据</span>
         </div>
-        <pre class="json-body">{{ formatJson(content) }}</pre>
+        <JsonView :data="content" :is-error="isError" :with-border="false" />
       </div>
     </template>
     
@@ -114,6 +115,8 @@
 </template>
 
 <script setup lang="ts">
+import JsonView from './JsonView.vue';
+
 interface ContentItem {
   type?: string;
   text?: string;
@@ -130,6 +133,7 @@ interface ContentItem {
 
 const props = defineProps<{
   content: ContentItem[] | any;
+  isError?: boolean;
 }>();
 
 const getItemClass = (item: ContentItem): string => {
@@ -157,21 +161,11 @@ const handleImageError = (e: Event) => {
   }
 };
 
-const formatJson = (value: any): string => {
-  try {
-    return JSON.stringify(value, null, 2);
-  } catch {
-    return String(value);
-  }
-};
-
-const tryFormatJson = (text: string): string => {
-  try {
-    const parsed = JSON.parse(text);
-    return JSON.stringify(parsed, null, 2);
-  } catch {
-    return text; // 不是 JSON 就原样返回
-  }
+const isJsonString = (text: string | undefined): boolean => {
+  if (!text) return false;
+  const t = text.trim();
+  if (!(t.startsWith('{') && t.endsWith('}')) && !(t.startsWith('[') && t.endsWith(']'))) return false;
+  try { JSON.parse(t); return true; } catch { return false; }
 };
 
 const formatBytes = (bytes: number): string => {
@@ -376,17 +370,7 @@ const formatBytes = (bytes: number): string => {
   border-radius: 8px;
 }
 
-.json-body {
-  margin: 0;
-  white-space: pre-wrap;
-  word-break: break-word;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 0.8rem;
-  line-height: 1.5;
-  color: var(--foreground, #1a1a2e);
-  max-height: 300px;
-  overflow: auto;
-}
+/* json-body 已由 JsonView 组件替代 */
 
 /* 空内容 */
 .empty-content {

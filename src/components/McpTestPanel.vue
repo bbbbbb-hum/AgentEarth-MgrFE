@@ -18,10 +18,14 @@
       </div>
       <div class="header-right">
         <div class="header-connection">
-          <span class="conn-kv"><span class="conn-label">configId</span><span class="conn-value">{{ configId }}</span></span>
           <span v-if="connectResult?.server_info" class="conn-kv server">
             <span class="conn-label">Server</span>
             <span class="conn-value">{{ connectResult.server_info.name }} v{{ connectResult.server_info.version }}</span>
+          </span>
+          <span class="conn-kv timeout">
+            <span class="conn-label">超时</span>
+            <input type="number" class="timeout-input" v-model.number="timeoutSeconds" min="5" max="300" step="5" />
+            <span class="conn-label">s</span>
           </span>
           <span v-if="connectionError" class="conn-error" :title="connectionError">⚠ 错误</span>
           <button class="btn btn-primary btn-sm" :disabled="connecting" @click="connect">
@@ -159,16 +163,13 @@
                           <ContentRenderer :content="normalizedContent" />
                         </template>
                         <div v-else class="error-result">
-                          <div class="error-header">
-                            <span class="error-icon">⚠️</span>
-                            <span class="error-title">{{ callResult.success ? '工具执行错误' : '调用失败' }}</span>
-                          </div>
+                          <div class="error-title">{{ callResult.success ? '工具执行错误' : '调用失败' }}</div>
                           <div class="error-message">{{ callResult.error || '未知错误' }}</div>
-                          <ContentRenderer v-if="normalizedContent" :content="normalizedContent" />
+                          <ContentRenderer v-if="normalizedContent" :content="normalizedContent" :is-error="true" />
                         </div>
                       </template>
                       <!-- 原始JSON视图 -->
-                      <pre v-else class="code">{{ formatJson(callResult) }}</pre>
+                      <JsonView v-else :data="callResult" :with-border="false" />
                     </template>
                   </div>
                 </div>
@@ -230,6 +231,7 @@
 import { ref, computed, watch, onBeforeUnmount, nextTick } from 'vue';
 import SchemaForm from './SchemaForm.vue';
 import ContentRenderer from './ContentRenderer.vue';
+import JsonView from './JsonView.vue';
 import McpHistoryPanel, { type HistoryEntry } from './McpHistoryPanel.vue';
 import McpNotificationsPanel, { type NotifyEntry, type NotifyLevel } from './McpNotificationsPanel.vue';
 import { testConnect, testCall, testConfirm } from '../api/mcpTest';
@@ -447,7 +449,7 @@ const connect = async () => {
   connectionError.value = null;
   
   try {
-    const response = await testConnect(props.configId);
+    const response = await testConnect(props.configId, timeoutSeconds.value);
     
     if (response.code === 0 && response.data.success) {
       connectResult.value = response.data;
@@ -539,7 +541,8 @@ const executeTool = async () => {
     const response = await testCall(
       props.configId,
       selectedTool.value.name,
-      toolArguments.value
+      toolArguments.value,
+      timeoutSeconds.value
     );
     
     callResult.value = response.data;
@@ -889,6 +892,27 @@ const confirmTest = async (status: number) => {
 
 .conn-kv.server .conn-value {
   color: var(--success);
+}
+
+.conn-kv.timeout {
+  background: var(--muted);
+}
+
+.timeout-input {
+  width: 52px;
+  padding: 2px 4px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-family: inherit;
+  text-align: center;
+  background: var(--card);
+  color: var(--foreground);
+  outline: none;
+}
+
+.timeout-input:focus {
+  border-color: var(--primary);
 }
 
 .conn-error {
@@ -1300,38 +1324,27 @@ const confirmTest = async (status: number) => {
    ============================================ */
 .error-result {
   padding: 16px;
-  background: hsl(var(--destructive) / 0.1);
-  border: 1px solid hsl(var(--destructive) / 0.2);
-  border-radius: var(--radius);
-}
-
-.error-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-
-.error-icon {
-  font-size: 1.1rem;
 }
 
 .error-title {
   font-weight: 600;
-  color: hsl(0 84% 80%);
+  color: #dc2626;
   font-size: 0.9rem;
+  margin-bottom: 8px;
 }
 
 .error-message {
-  color: hsl(0 84% 90%);
+  color: #dc2626;
   font-size: 0.85rem;
-  line-height: 1.5;
+  line-height: 1.6;
   padding: 12px;
-  background: rgba(0, 0, 0, 0.3);
+  background: #fef2f2;
+  border: 1px solid #fecaca;
   border-radius: var(--radius);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   white-space: pre-wrap;
   word-break: break-word;
+  margin-bottom: 12px;
 }
 
 /* ============================================

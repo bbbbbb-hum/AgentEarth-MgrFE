@@ -26,7 +26,9 @@
                 复制
               </button>
             </div>
-            <pre class="code">{{ formatJson(item.request) }}</pre>
+            <div class="section-body">
+              <JsonView :data="item.request" :with-border="false" />
+            </div>
           </div>
 
           <div class="section">
@@ -41,7 +43,9 @@
                 </button>
               </div>
             </div>
-            <pre class="code">{{ formatJson(item.response) }}</pre>
+            <div class="section-body">
+              <JsonView :data="item.response" :is-error="item.status === 'error'" :with-border="false" />
+            </div>
           </div>
         </div>
       </details>
@@ -51,6 +55,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import JsonView from './JsonView.vue';
 
 export type HistoryStatus = 'success' | 'error';
 
@@ -261,17 +266,9 @@ const handleToggle = (item: HistoryEntry, evt: Event) => {
   background: #f1f5f9;
 }
 
-.code {
-  margin: 0;
+.section-body {
   padding: 10px;
-  background: #0b1220;
-  color: #e2e8f0;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  font-size: 0.8rem;
-  line-height: 1.5;
-  white-space: pre-wrap;
-  word-break: break-word;
-  max-height: 240px;
+  max-height: 280px;
   overflow: auto;
 }
 
