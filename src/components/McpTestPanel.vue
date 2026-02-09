@@ -195,11 +195,10 @@
         </div>
 
         <!-- 下部分：历史/通知抽屉 -->
-        <div class="work-splitter" @pointerdown="startResize">
-          <div class="work-splitter-grip"></div>
-        </div>
-
         <div class="bottom-drawer" :class="{ collapsed: bottomCollapsed }">
+          <div class="drawer-drag-handle" @pointerdown="startResize">
+            <div class="drawer-drag-grip"></div>
+          </div>
           <div class="drawer-header">
             <div class="tabs">
               <button type="button" class="tab" :class="{ active: bottomTab === 'history' }" @click="bottomTab = 'history'">历史</button>
@@ -377,8 +376,8 @@ const schemaHint = computed(() => {
 });
 
 const clampDrawerHeight = (value: number) => {
-  const minDrawer = 160;
-  const minRunner = 260;
+  const minDrawer = 120;
+  const minRunner = 150;
   const splitter = 12;
   const container = workAreaEl.value?.clientHeight ?? window.innerHeight;
   const maxDrawer = Math.max(minDrawer, container - splitter - minRunner);
@@ -396,6 +395,7 @@ const onPointerMove = (e: PointerEvent) => {
 const stopResize = () => {
   if (!resizing.value) return;
   resizing.value = false;
+  document.body.style.userSelect = '';
   window.removeEventListener('pointermove', onPointerMove);
   window.removeEventListener('pointerup', stopResize);
   window.removeEventListener('pointercancel', stopResize);
@@ -414,6 +414,7 @@ const startResize = (e: PointerEvent) => {
   resizeStartY.value = e.clientY;
   resizeStartHeight.value = drawerHeight.value;
   activePointerId.value = e.pointerId;
+  document.body.style.userSelect = 'none';
   window.addEventListener('pointermove', onPointerMove);
   window.addEventListener('pointerup', stopResize);
   window.addEventListener('pointercancel', stopResize);
@@ -874,7 +875,7 @@ const confirmTest = async (status: number) => {
    左侧 Sidebar
    ============================================ */
 .sidebar {
-  width: 280px;
+  width: 240px;
   flex-shrink: 0;
   border-right: 1px solid var(--border);
   background: var(--card);
@@ -1090,20 +1091,21 @@ const confirmTest = async (status: number) => {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 16px;
-  gap: 16px;
+  padding: 12px;
+  gap: 0;
   overflow: hidden;
   background: var(--muted);
 }
 
-/* 两列网格布局 */
+/* 两列网格布局 - 参照 Inspector grid-cols-2 */
 .tools-grid {
   flex: 1;
   display: grid;
-  grid-template-columns: 300px 1fr;
-  gap: 16px;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr;
+  gap: 12px;
   min-height: 0;
-  overflow: hidden;
+  overflow: auto;
 }
 
 /* ============================================
@@ -1181,9 +1183,12 @@ const confirmTest = async (status: number) => {
   min-height: 0;
 }
 
-/* 工具详情面板的 panel-body 需要更多 padding */
+/* 工具详情面板的 panel-body */
 .tool-detail-panel > .panel-body {
-  padding: 20px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 /* 工具头部信息 */
@@ -1474,65 +1479,53 @@ const confirmTest = async (status: number) => {
 }
 
 /* ============================================
-   底部抽屉分割线
-   ============================================ */
-.work-splitter {
-  height: 12px;
-  flex-shrink: 0;
-  cursor: row-resize;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  user-select: none;
-  touch-action: none;
-  background: transparent;
-  transition: background 0.15s;
-  position: relative;
-  z-index: 10;
-  /* 增加可点击区域 */
-  margin: -4px 0;
-  padding: 4px 0;
-}
-
-.work-splitter:hover,
-.work-splitter:active {
-  background: hsl(221.2 83.2% 53.3% / 0.1);
-}
-
-.work-splitter-grip {
-  width: 48px;
-  height: 4px;
-  border-radius: 2px;
-  background: var(--border);
-  transition: background 0.15s;
-  pointer-events: none;
-}
-
-.work-splitter:hover .work-splitter-grip,
-.work-splitter:active .work-splitter-grip {
-  background: var(--primary);
-}
-
-/* ============================================
-   底部抽屉
+   底部抽屉 - 参照 Inspector: border-top + absolute drag handle
    ============================================ */
 .bottom-drawer {
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border);
+  border-top: 1px solid var(--border);
   background: var(--card);
-  box-shadow: var(--shadow);
-  overflow: hidden;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  height: var(--drawerHeight, 280px);
-  min-height: 120px;
-  transition: height 0.15s ease;
+  height: var(--drawerHeight, 200px);
+  position: relative;
+  margin-top: 12px;
 }
 
 .bottom-drawer.collapsed {
   height: 44px;
-  min-height: 44px;
+}
+
+/* 拖动手柄 - absolute 定位覆盖在 border-top 上 */
+.drawer-drag-handle {
+  position: absolute;
+  top: -8px;
+  left: 0;
+  right: 0;
+  height: 16px;
+  cursor: row-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  user-select: none;
+  touch-action: none;
+}
+
+.drawer-drag-handle:hover {
+  background: hsl(221.2 83.2% 53.3% / 0.08);
+}
+
+.drawer-drag-grip {
+  width: 32px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+  transition: background 0.15s;
+}
+
+.drawer-drag-handle:hover .drawer-drag-grip {
+  background: var(--primary);
 }
 
 .drawer-header {
