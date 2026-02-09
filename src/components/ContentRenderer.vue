@@ -15,7 +15,7 @@
               <span class="badge-icon">📝</span>
               <span>文本</span>
             </div>
-            <pre class="text-body">{{ item.text }}</pre>
+            <pre class="text-body">{{ tryFormatJson(item.text) }}</pre>
           </div>
         </template>
         
@@ -165,6 +165,15 @@ const formatJson = (value: any): string => {
   }
 };
 
+const tryFormatJson = (text: string): string => {
+  try {
+    const parsed = JSON.parse(text);
+    return JSON.stringify(parsed, null, 2);
+  } catch {
+    return text; // 不是 JSON 就原样返回
+  }
+};
+
 const formatBytes = (bytes: number): string => {
   if (bytes === 0) return '0 B';
   const k = 1024;
@@ -255,7 +264,7 @@ const formatBytes = (bytes: number): string => {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.85rem;
   line-height: 1.6;
-  color: #e2e8f0;
+  color: var(--foreground, #1a1a2e);
 }
 
 /* 图片内容 */
@@ -374,7 +383,7 @@ const formatBytes = (bytes: number): string => {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.8rem;
   line-height: 1.5;
-  color: #cbd5e1;
+  color: var(--foreground, #1a1a2e);
   max-height: 300px;
   overflow: auto;
 }

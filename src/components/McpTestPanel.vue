@@ -112,7 +112,7 @@
                 </div>
                 
                 <!-- 结果区域 -->
-                <div class="result-section" v-if="callResult || calling" ref="resultSectionEl">
+                <div class="result-section" v-if="callResult || calling" ref="resultSectionEl" :class="{ 'result-success': callResult?.success && !callResult?.is_error, 'result-error': callResult && (!callResult.success || callResult.is_error) }">
                   <div class="result-header">
                     <div class="result-left">
                       <span class="section-title">结果</span>
@@ -156,7 +156,7 @@
                       <!-- 结构化视图 -->
                       <template v-if="resultView === 'structured'">
                         <template v-if="callResult.success && !callResult.is_error">
-                          <ContentRenderer :content="callResult.content" />
+                          <ContentRenderer :content="normalizedContent" />
                         </template>
                         <div v-else class="error-result">
                           <div class="error-header">
@@ -164,7 +164,7 @@
                             <span class="error-title">{{ callResult.success ? '工具执行错误' : '调用失败' }}</span>
                           </div>
                           <div class="error-message">{{ callResult.error || '未知错误' }}</div>
-                          <ContentRenderer v-if="callResult.content" :content="callResult.content" />
+                          <ContentRenderer v-if="normalizedContent" :content="normalizedContent" />
                         </div>
                       </template>
                       <!-- 原始JSON视图 -->
@@ -256,6 +256,14 @@ const toolArguments = ref<Record<string, any>>({});
 const callResult = ref<CallResponse | null>(null);
 const resultSectionEl = ref<HTMLElement | null>(null);
 const resultView = ref<'structured' | 'raw'>('structured');
+const normalizedContent = computed(() => {
+  const c = callResult.value?.content;
+  // 后端可能多包一层 { content: [...] }，需解包
+  if (c && !Array.isArray(c) && Array.isArray(c.content)) {
+    return c.content;
+  }
+  return c;
+});
 const focusMode = ref(false);
 const toolQuery = ref('');
 
@@ -1220,6 +1228,15 @@ const confirmTest = async (status: number) => {
   border-radius: var(--radius-lg);
   overflow: hidden;
   border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+}
+
+.result-section.result-success {
+  border-left-color: hsl(142 76% 46%);
+}
+
+.result-section.result-error {
+  border-left-color: hsl(0 84% 60%);
 }
 
 .result-section .result-header {
