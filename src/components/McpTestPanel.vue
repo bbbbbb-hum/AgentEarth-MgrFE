@@ -16,41 +16,29 @@
           </div>
         </div>
       </div>
-      <button class="btn-close" @click="$emit('close')" title="关闭">
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-      </button>
+      <div class="header-right">
+        <div class="header-connection">
+          <span class="conn-kv"><span class="conn-label">configId</span><span class="conn-value">{{ configId }}</span></span>
+          <span v-if="connectResult?.server_info" class="conn-kv server">
+            <span class="conn-label">Server</span>
+            <span class="conn-value">{{ connectResult.server_info.name }} v{{ connectResult.server_info.version }}</span>
+          </span>
+          <span v-if="connectionError" class="conn-error" :title="connectionError">⚠ 错误</span>
+          <button class="btn btn-primary btn-sm" :disabled="connecting" @click="connect">
+            {{ connecting ? '连接中...' : (connectionStatus === 'connected' ? '重连' : '连接') }}
+          </button>
+          <button class="btn btn-light btn-sm" :disabled="connecting && connectionStatus !== 'connected'" @click="disconnect">
+            断开
+          </button>
+        </div>
+        <button class="btn-close" @click="$emit('close')" title="关闭">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
     </div>
 
-    <div class="main-content">
-      <!-- 左侧 Sidebar：只包含连接配置 -->
-      <div class="sidebar">
-        <div class="card connection-card">
-          <div class="card-title-row">
-            <span class="card-title">连接</span>
-            <span class="pill" :class="connectionStatus">{{ statusText }}</span>
-          </div>
-          <div class="kv">
-            <span class="k">configId</span>
-            <span class="v">{{ configId }}</span>
-          </div>
-          <div class="kv" v-if="connectResult?.server_info">
-            <span class="k">Server</span>
-            <span class="v">{{ connectResult.server_info.name }} v{{ connectResult.server_info.version }}</span>
-          </div>
-          <div class="err" v-if="connectionError">{{ connectionError }}</div>
-          <div class="btn-row">
-            <button class="btn btn-primary" :disabled="connecting" @click="connect">
-              {{ connecting ? '连接中...' : (connectionStatus === 'connected' ? '重连' : '连接') }}
-            </button>
-            <button class="btn btn-light" :disabled="connecting && connectionStatus !== 'connected'" @click="disconnect">
-              断开
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- 右侧工作区 -->
-      <div class="work-area" ref="workAreaEl" :style="{ '--drawerHeight': (bottomCollapsed ? 44 : drawerHeight) + 'px' }">
+    <!-- 工作区（全宽） -->
+    <div class="work-area" ref="workAreaEl" :style="{ '--drawerHeight': (bottomCollapsed ? 44 : drawerHeight) + 'px' }">
         <!-- 上部分：两列网格布局 -->
         <div class="tools-grid">
           <!-- 左列：工具列表 -->
@@ -218,7 +206,6 @@
           </div>
         </div>
       </div>
-    </div>
 
     <div class="panel-footer" v-if="connectionStatus === 'connected'">
       <div class="footer-left">
@@ -857,106 +844,53 @@ const confirmTest = async (status: number) => {
 }
 
 /* ============================================
-   主内容区域
+   顶部标题栏 - 右侧连接控制区
    ============================================ */
-.main-content {
-  display: flex;
-  flex: 1 1 0;
-  min-height: 0;
-  overflow: hidden;
-  background: var(--background);
-}
-
-.mcp-test-panel.focus-mode .sidebar {
-  display: none;
-}
-
-/* ============================================
-   左侧 Sidebar
-   ============================================ */
-.sidebar {
-  width: 240px;
-  flex-shrink: 0;
-  border-right: 1px solid var(--border);
-  background: var(--card);
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto;
-  min-height: 0;
-  /* 在 flex 布局中会自动拉伸高度 */
-}
-
-.connection-card {
-  flex-shrink: 0;
-}
-
-.card {
-  background: var(--card);
-  padding: 16px;
-  flex-shrink: 0;
-}
-
-.card-title-row {
+.header-right {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 12px;
+}
+
+.header-connection {
+  display: flex;
+  align-items: center;
   gap: 8px;
-  margin-bottom: 12px;
 }
 
-.card-title {
-  font-weight: 600;
-  font-size: 0.9rem;
-  color: var(--foreground);
-}
-
-.count {
-  font-size: 0.75rem;
-  color: var(--muted-foreground);
+.conn-kv {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
   background: var(--muted);
-  padding: 2px 8px;
-  border-radius: 9999px;
+  border-radius: var(--radius);
+  font-size: 0.8rem;
+}
+
+.conn-kv.server {
+  background: var(--success-bg);
+}
+
+.conn-label {
+  color: var(--muted-foreground);
   font-weight: 500;
 }
 
-.kv {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 8px;
-  font-size: 0.85rem;
-}
-
-.k {
-  color: var(--muted-foreground);
-  flex-shrink: 0;
-}
-
-.v {
+.conn-value {
   color: var(--foreground);
-  word-break: break-all;
-  text-align: right;
+  font-weight: 600;
 }
 
-.err {
-  margin: 8px 0;
-  padding: 8px 12px;
-  border-radius: var(--radius);
-  border: 1px solid hsl(var(--destructive) / 0.2);
-  background: var(--destructive-bg);
+.conn-kv.server .conn-value {
+  color: var(--success);
+}
+
+.conn-error {
   color: var(--destructive);
-  font-size: 0.85rem;
-  line-height: 1.4;
-}
-
-.btn-row {
-  display: flex;
-  gap: 8px;
-  margin-top: 12px;
-}
-
-.btn-row .btn {
-  flex: 1;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: help;
 }
 
 /* ============================================
@@ -1083,11 +1017,10 @@ const confirmTest = async (status: number) => {
 }
 
 /* ============================================
-   右侧工作区
+   工作区（全宽，直接在 panel-header 下方）
    ============================================ */
 .work-area {
   flex: 1;
-  min-width: 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -1830,8 +1763,8 @@ select:focus {
     grid-template-columns: 1fr;
   }
   
-  .sidebar {
-    width: 240px;
+  .header-connection {
+    flex-wrap: wrap;
   }
 }
 </style>
