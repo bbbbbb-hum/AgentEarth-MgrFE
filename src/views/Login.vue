@@ -85,6 +85,14 @@ const handleLogin = async () => {
       }),
     });
 
+    // 安全检查：确保响应是 JSON 格式再解析
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      error.value = `服务异常（HTTP ${response.status}），请联系管理员检查后端服务是否正常`;
+      console.error('登录错误: 响应不是 JSON 格式', response.status, contentType);
+      return;
+    }
+
     const data = await response.json();
 
     if (data.code === 200) {
