@@ -1216,16 +1216,16 @@ const confirmTest = async (status: number) => {
    结果区域
    ============================================ */
 .result-section {
-  background: hsl(222.2 84% 4.9%);
+  background: var(--card);
   border-radius: var(--radius-lg);
   overflow: hidden;
-  border: 1px solid hsl(217.2 32.6% 17.5%);
+  border: 1px solid var(--border);
 }
 
 .result-section .result-header {
   padding: 12px 16px;
-  background: hsl(217.2 32.6% 12%);
-  border-bottom: 1px solid hsl(217.2 32.6% 17.5%);
+  background: var(--muted);
+  border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1246,7 +1246,7 @@ const confirmTest = async (status: number) => {
 
 .result-section .result-body {
   padding: 16px;
-  color: hsl(210 40% 96.1%);
+  color: var(--foreground);
   max-height: 400px;
   overflow-y: auto;
 }
