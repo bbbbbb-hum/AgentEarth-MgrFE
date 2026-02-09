@@ -87,6 +87,7 @@
           <McpTestPanel
             :configId="selectedService!.Id"
             :serviceName="selectedService!.Name"
+            :wemcpName="selectedService!.WemcpName"
             @close="closeTestPanel"
             @confirmed="handleTestConfirmed"
           />

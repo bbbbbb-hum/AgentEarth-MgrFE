@@ -20,7 +20,7 @@
         <div class="header-connection">
           <span v-if="connectResult?.server_info" class="conn-kv server">
             <span class="conn-label">Server</span>
-            <span class="conn-value">{{ connectResult.server_info.name }} v{{ connectResult.server_info.version }}</span>
+            <span class="conn-value">{{ wemcpName }}</span>
           </span>
           <span class="conn-kv timeout">
             <span class="conn-label">超时</span>
@@ -219,8 +219,8 @@
       <div class="footer-actions">
         <button class="btn btn-text" @click="$emit('close')">关闭</button>
         <div class="action-group">
-          <button class="btn btn-danger-soft" @click="confirmTest(-1)">❌ 测试失败</button>
-          <button class="btn btn-success-soft" @click="confirmTest(1)">✅ 测试通过</button>
+          <button class="btn" :class="confirmStatus === -1 ? 'btn-danger-soft' : 'btn-outline'" @click="confirmTest(-1)">❌ 测试失败</button>
+          <button class="btn" :class="confirmStatus === 1 ? 'btn-success-soft' : 'btn-outline'" @click="confirmTest(1)">✅ 测试通过</button>
         </div>
       </div>
     </div>
@@ -240,6 +240,7 @@ import type { McpTool, ConnectResponse, CallResponse } from '../types/mcp';
 const props = defineProps<{
   configId: number;
   serviceName: string;
+  wemcpName?: string;
 }>();
 
 const emit = defineEmits<{
@@ -648,11 +649,14 @@ const applyHistory = (entry: HistoryEntry) => {
 };
 
 // 确认测试结果
+const confirmStatus = ref<number>(0); // 0=未选, 1=通过, -1=失败
+
 const confirmTest = async (status: number) => {
   try {
     const response = await testConfirm(props.configId, status);
     
     if (response.code === 0) {
+      confirmStatus.value = status;
       emit('confirmed', status);
       emit('close');
     } else {
@@ -1693,6 +1697,19 @@ const confirmTest = async (status: number) => {
 
 .btn-danger-soft:hover:not(:disabled) {
   background: hsl(var(--destructive) / 0.2);
+}
+
+/* Outline Button (未选中状态) */
+.btn-outline {
+  background: transparent;
+  color: var(--muted-foreground);
+  border: 1px solid var(--border);
+  box-shadow: none;
+}
+
+.btn-outline:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--foreground);
 }
 
 /* ============================================
