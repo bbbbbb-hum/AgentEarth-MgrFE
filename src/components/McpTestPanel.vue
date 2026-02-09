@@ -112,7 +112,7 @@
                 </div>
                 
                 <!-- 结果区域 -->
-                <div class="result-section" v-if="callResult || calling">
+                <div class="result-section" v-if="callResult || calling" ref="resultSectionEl">
                   <div class="result-header">
                     <div class="result-left">
                       <span class="section-title">结果</span>
@@ -227,7 +227,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onBeforeUnmount } from 'vue';
+import { ref, computed, watch, onBeforeUnmount, nextTick } from 'vue';
 import SchemaForm from './SchemaForm.vue';
 import ContentRenderer from './ContentRenderer.vue';
 import McpHistoryPanel, { type HistoryEntry } from './McpHistoryPanel.vue';
@@ -254,6 +254,7 @@ const tools = ref<McpTool[]>([]);
 const selectedTool = ref<McpTool | null>(null);
 const toolArguments = ref<Record<string, any>>({});
 const callResult = ref<CallResponse | null>(null);
+const resultSectionEl = ref<HTMLElement | null>(null);
 const resultView = ref<'structured' | 'raw'>('structured');
 const focusMode = ref(false);
 const toolQuery = ref('');
@@ -571,6 +572,9 @@ const executeTool = async () => {
   } finally {
     stopProgressTimer();
     calling.value = false;
+    // 自动滚动到结果区域
+    await nextTick();
+    resultSectionEl.value?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 };
 
@@ -1038,7 +1042,7 @@ const confirmTest = async (status: number) => {
   grid-template-rows: 1fr;
   gap: 12px;
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
 }
 
 /* ============================================
@@ -1122,6 +1126,11 @@ const confirmTest = async (status: number) => {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+/* 防止 flex 子元素被压缩，确保 overflow-y: auto 能正常触发滚动 */
+.tool-detail-panel > .panel-body > * {
+  flex-shrink: 0;
 }
 
 /* 工具头部信息 */
