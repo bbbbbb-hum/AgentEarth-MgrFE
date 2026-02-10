@@ -129,8 +129,9 @@ const getRemainingDisplay = (record: FundChangeRecord) => {
   if (!record.batch_id || init <= 0) {
     const displayRemainRaw = Math.max(rawRemain, 0);
     const overdraftRaw = rawRemain < 0 ? -rawRemain : 0; //如果真实余额为-50，就加负号展示为50
-    const percentRaw = init > 0 ? Math.round((displayRemainRaw / init) * 100) : 0; //计算剩余金额占初始金额的百分比
-    return { displayRemain: displayRemainRaw, overdraft: overdraftRaw, percent: percentRaw }; //返回展示用剩余额度、透支金额、百分比
+    const rawPct = init > 0 ? (displayRemainRaw / init) * 100 : 0;
+    const percentText = formatPercent(rawPct, displayRemainRaw);
+    return { displayRemain: displayRemainRaw, overdraft: overdraftRaw, percent: rawPct, percentText };
   }
 
   // 收集所有充值批次（仅 initial_amount > 0）
@@ -166,8 +167,9 @@ const getRemainingDisplay = (record: FundChangeRecord) => {
   if (totalReal < 0) {
     const displayRemainRaw = Math.max(rawRemain, 0);
     const overdraftRaw = rawRemain < 0 ? -rawRemain : 0;
-    const percentRaw = init > 0 ? Math.round((displayRemainRaw / init) * 100) : 0;
-    return { displayRemain: displayRemainRaw, overdraft: overdraftRaw, percent: percentRaw };
+    const rawPct = init > 0 ? (displayRemainRaw / init) * 100 : 0;
+    const percentText = formatPercent(rawPct, displayRemainRaw);
+    return { displayRemain: displayRemainRaw, overdraft: overdraftRaw, percent: rawPct, percentText };
   }
 
   // 全局余额 >= 0：在展示层进行“虚拟填补透支”
@@ -176,19 +178,20 @@ const getRemainingDisplay = (record: FundChangeRecord) => {
     .filter(b => b.remain < 0) //把所有余额为负的批次挑出来，表示这些批次存在透支
     .reduce((sum, b) => sum + (-b.remain), 0); //对于每个负批次，把-b.remain加起来，得到总透支债务
 
-  // 2. 正余额批次按 FEFO 顺序填补透支：先按过期时间升序，再按支付时间升序
+  // 2. 正余额批次按「充值时间优先」填补透支：
+  //    业务含义：谁先充值谁先扛历史窟窿，后来的充值只服务后续消费，不再重分配之前已经确定的填补结果。
   const positives = items
     .filter(b => b.remain > 0)
     .sort((a, b) => {
-      // 先按过期时间升序：有过期时间的在前，永久有效在后
-      const ea = a.expire ? a.expire.getTime() : Number.POSITIVE_INFINITY;
-      const eb = b.expire ? b.expire.getTime() : Number.POSITIVE_INFINITY;
-      if (ea !== eb) return ea - eb;
-
-      // 过期时间相同或都无过期：按支付时间升序
+      // 先按支付时间升序：老充值在前，新充值在后，保证填补责任不会在后续充值到来时被“抢走”
       const pa = a.payTime ? a.payTime.getTime() : Number.POSITIVE_INFINITY;
       const pb = b.payTime ? b.payTime.getTime() : Number.POSITIVE_INFINITY;
       if (pa !== pb) return pa - pb;
+
+      // 支付时间相同再按过期时间升序：有过期时间的在前，永久有效在后（仅作为次级排序保证稳定性）
+      const ea = a.expire ? a.expire.getTime() : Number.POSITIVE_INFINITY;
+      const eb = b.expire ? b.expire.getTime() : Number.POSITIVE_INFINITY;
+      if (ea !== eb) return ea - eb;
 
       // 再退一步，用 batch id 升序稳定排序
       return a.id - b.id;
@@ -216,10 +219,18 @@ const getRemainingDisplay = (record: FundChangeRecord) => {
 
   const virtualRemain = virtualMap[record.batch_id] ?? rawRemain;
   const displayRemain = Math.max(virtualRemain, 0);
-  const percent = init > 0 ? Math.round((displayRemain / init) * 100) : 0;
+  const rawPct = init > 0 ? (displayRemain / init) * 100 : 0;
+  const percentText = formatPercent(rawPct, displayRemain);
 
   // 全局余额已经为非负，说明透支已被新充值整体填平：不再按批次展示透支标签
-  return { displayRemain, overdraft: 0, percent };
+  return { displayRemain, overdraft: 0, percent: rawPct, percentText };
+};
+
+// 余额百分比展示：小于 1% 时保留一位小数，避免 0.58/220.58 等显示成 0%
+const formatPercent = (rawPercent: number, displayRemain: number): string => {
+  if (rawPercent <= 0 && displayRemain <= 0) return '0%';
+  if (rawPercent > 0 && rawPercent < 1) return rawPercent.toFixed(1) + '%';
+  return Math.round(rawPercent) + '%';
 };
 
 // 批次状态展示辅助：
@@ -262,6 +273,8 @@ const recordPage = ref(1);
 const recordPageSize = ref(10);
 const recordPageSizeOptions = [10, 20, 50, 100];
 const recordPageInput = ref(1);
+/** 资金变动总条数（来自接口，用于服务端分页） */
+const recordTotalFromServer = ref(0);
 const lineChart = shallowRef<echarts.ECharts | null>(null);
 const barChart = shallowRef<echarts.ECharts | null>(null);
 const isChartInitialized = ref(false); // 标记图表是否已初始化
@@ -309,17 +322,15 @@ const displayBalance = ref(0);
 const targetBalance = ref(0);
 const isBalanceAnimating = ref(false);
 
-const totalRecordCount = computed(() => fundChangeRecords.value.length);
+const totalRecordCount = computed(() => recordTotalFromServer.value);
 const totalRecordPages = computed(() => Math.max(1, Math.ceil(totalRecordCount.value / recordPageSize.value)));
 const recordPageStart = computed(() => {
   if (totalRecordCount.value === 0) return 0;
   return (recordPage.value - 1) * recordPageSize.value + 1;
 });
 const recordPageEnd = computed(() => Math.min(totalRecordCount.value, recordPage.value * recordPageSize.value));
-const pagedFundChangeRecords = computed(() => {
-  const start = (recordPage.value - 1) * recordPageSize.value;
-  return fundChangeRecords.value.slice(start, start + recordPageSize.value);
-});
+/** 当前页展示列表（接口已按页返回，无需再 slice） */
+const pagedFundChangeRecords = computed(() => fundChangeRecords.value);
 
 const clampRecordPage = (page: number) => {
   return Math.min(Math.max(1, page), totalRecordPages.value);
@@ -342,11 +353,13 @@ const setSuccessToast = (title: string, message: string, durationMs = 3000) => {
 const goToRecordPage = (page: number) => {
   recordPage.value = clampRecordPage(page);
   recordPageInput.value = recordPage.value;
+  fetchFundChangeRecords();
 };
 
 const changeRecordPageSize = (size: number) => {
   recordPageSize.value = size;
   resetRecordPaging();
+  fetchFundChangeRecords();
 };
 
 const jumpToRecordPage = () => {
@@ -469,11 +482,13 @@ const fetchBalanceHistory = async () => {
   }
 };
 
-// 获取资金变动明细
+// 获取资金变动明细（服务端分页：传 page、page_size，用接口返回的 total 做总条数）
 const fetchFundChangeRecords = async () => {
   try {
     const params = new URLSearchParams();
     params.append('filter', recordFilter.value);
+    params.append('page', recordPage.value.toString());
+    params.append('page_size', recordPageSize.value.toString());
     if (chargeTypeFilter.value > 0) {
       params.append('charge_type', chargeTypeFilter.value.toString());
     }
@@ -482,8 +497,9 @@ const fetchFundChangeRecords = async () => {
       credentials: 'include',
     });
     if (!response.ok) throw new Error('Failed to fetch fund change records');
-    const data: { list: FundChangeRecord[] } = await response.json();
+    const data: { list: FundChangeRecord[]; total: number } = await response.json();
     fundChangeRecords.value = data.list || [];
+    recordTotalFromServer.value = typeof data.total === 'number' ? data.total : 0;
     recordPage.value = clampRecordPage(recordPage.value);
     recordPageInput.value = recordPage.value;
   } catch (error) {
@@ -1793,13 +1809,13 @@ onUnmounted(() => {
                         {{ formatCurrency(getRemainingDisplay(record).displayRemain) }}
                       </span>
                       <span class="remaining-percent">
-                        {{ getRemainingDisplay(record).percent }}%
+                        {{ getRemainingDisplay(record).percentText }}
                       </span>
                     </div>
                     <div class="remaining-progress-bg">
                       <div 
                         class="remaining-progress-fill" 
-                        :style="{ width: getRemainingDisplay(record).percent + '%' }"
+                        :style="{ width: Math.min(100, getRemainingDisplay(record).percent) + '%' }"
                         :class="{ 'bar-empty': getRemainingDisplay(record).percent <= 0 }"
                       ></div>
                     </div>
