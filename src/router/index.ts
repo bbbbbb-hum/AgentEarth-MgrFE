@@ -2,7 +2,6 @@ import { createRouter, createWebHistory, type RouteLocationNormalized, type Navi
 import { getToken, isTokenExpired, logout } from '../http';
 import ServiceEntry from '../views/ServiceEntry.vue';
 import ServiceTest from '../views/ServiceTest.vue';
-import ServiceOnline from '../views/ServiceOnline.vue';
 import ServicePrice from '../views/ServicePrice.vue';
 import McpServices from '../views/McpServices.vue';
 import McpServiceDetail from '../views/McpServiceDetail.vue';
@@ -30,12 +29,6 @@ const routes = [
     path: '/service-test',
     name: 'ServiceTest',
     component: ServiceTest,
-    meta: { requiresAuth: true }
-  },
-  {
-    path: '/service-online',
-    name: 'ServiceOnline',
-    component: ServiceOnline,
     meta: { requiresAuth: true }
   },
   {

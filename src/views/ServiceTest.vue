@@ -18,7 +18,10 @@
               />
               <button class="btn btn-sm btn-search" @click="handleSearch">搜索</button>
             </div>
-            <button class="btn btn-sm btn-refresh" @click="fetchServices">刷新</button>
+            <button class="btn btn-sm btn-refresh" @click="refreshClusterStatus" :disabled="refreshing">
+              {{ refreshing ? '同步中...' : '刷新集群状态' }}
+            </button>
+            <span v-if="syncMessage" class="sync-message" :class="syncMessageClass">{{ syncMessage }}</span>
           </div>
         </div>
         
@@ -32,6 +35,9 @@
               <span class="service-id">ID: {{ service.Id }}</span>
               <span class="service-name">{{ service.Name }}</span>
               <span class="service-wemcp">{{ service.WemcpName }}</span>
+              <span class="online-badge" :class="service.OnlineStatus === 1 ? 'ready' : 'not-ready'">
+                {{ service.OnlineStatus === 1 ? '就绪' : '未就绪' }}
+              </span>
               <span class="status-badge" :class="getStatusClass(service.TestStatus)">
                 {{ getStatusText(service.TestStatus) }}
               </span>
@@ -39,6 +45,8 @@
             <div class="service-actions">
               <button 
                 class="btn btn-sm btn-test"
+                :disabled="service.OnlineStatus !== 1"
+                :title="service.OnlineStatus !== 1 ? '请先部署该服务至集群' : '点击测试'"
                 @click="openTestPanel(service)"
               >
                 🧪 测试
@@ -140,6 +148,9 @@ const total = ref(0);
 const currentPage = ref(1);
 const pageSize = ref(10);
 const loading = ref(false);
+const refreshing = ref(false);
+const syncMessage = ref('');
+const syncMessageClass = ref('');
 const testedServices = ref<Set<number>>(new Set());
 const accounts = ref<Record<number, Account[]>>({});
 const accountUpdateTime = ref<Record<number, string>>({});
@@ -303,6 +314,73 @@ const fetchServices = async () => {
   } catch (err) {
     console.error('Failed to fetch services:', err);
   } finally {
+    loading.value = false;
+  }
+};
+
+// 刷新集群状态：调用后端同步 K8s Pod 状态 + 拉取列表
+const refreshClusterStatus = async () => {
+  refreshing.value = true;
+  syncMessage.value = '';
+  loading.value = true;
+  try {
+    const params = new URLSearchParams({
+      page: currentPage.value.toString(),
+      size: pageSize.value.toString()
+    });
+    if (searchKeyword.value.trim()) {
+      params.append('search', searchKeyword.value.trim());
+    }
+
+    const response = await authorizedFetch(`${apiBaseUrl}api/admin/data/refresh-service-online-status?${params.toString()}`, {
+      method: 'POST'
+    });
+    if (!response.ok) throw new Error('Network response was not ok');
+
+    const data = await response.json();
+    if (data.code === 0) {
+      serviceList.value = (data.data.list || []).map((item: any) => ({
+        Id: item.id,
+        Name: item.name,
+        Description: item.description,
+        WemcpName: item.wemcp_name,
+        Tags: Array.isArray(item.tags) ? item.tags.join(',') : '',
+        AccountRequired: item.account_required,
+        TestStatus: item.test_status,
+        OnlineStatus: item.online_status,
+        CreateTime: item.create_time,
+        UpdateTime: item.update_time
+      }));
+      total.value = data.data.total || 0;
+
+      syncMessage.value = data.data.sync_message || '同步完成';
+      syncMessageClass.value = 'sync-success';
+
+      testedServices.value.clear();
+      for (const service of serviceList.value) {
+        if (service.TestStatus === 1) {
+          testedServices.value.add(service.Id);
+        }
+      }
+
+      // 拉取账号
+      const accountPromises: Promise<void>[] = [];
+      for (const service of serviceList.value) {
+        if (service.AccountRequired === 1) {
+          accountPromises.push(fetchAccounts(service.Id));
+        }
+      }
+      await Promise.all(accountPromises);
+    } else {
+      syncMessage.value = data.message || '同步失败';
+      syncMessageClass.value = 'sync-error';
+    }
+  } catch (err) {
+    console.error('Failed to refresh cluster status:', err);
+    syncMessage.value = '请求失败';
+    syncMessageClass.value = 'sync-error';
+  } finally {
+    refreshing.value = false;
     loading.value = false;
   }
 };
@@ -583,8 +661,51 @@ onMounted(() => {
   color: #fff;
 }
 
-.btn-test:hover {
+.btn-test:hover:not(:disabled) {
   background: #2563eb;
+}
+
+.btn-test:disabled {
+  background: #d1d5db;
+  color: #9ca3af;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* 就绪/未就绪 badge */
+.online-badge {
+  padding: 3px 10px;
+  border-radius: 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.online-badge.ready {
+  background-color: #d1fae5;
+  color: #065f46;
+}
+
+.online-badge.not-ready {
+  background-color: #f3f4f6;
+  color: #9ca3af;
+}
+
+/* 同步消息 */
+.sync-message {
+  font-size: 0.8rem;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.sync-message.sync-success {
+  color: #065f46;
+  background: #d1fae5;
+}
+
+.sync-message.sync-error {
+  color: #991b1b;
+  background: #fee2e2;
 }
 
 .empty-tip {

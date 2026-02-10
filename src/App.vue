@@ -175,12 +175,6 @@ const sidebarMenu = ref<SidebarMenuItem[]>([
     icon: '🔧'
   },
   {
-    id: 4,
-    title: '外部MCP服务上线管理',
-    path: '/service-online',
-    icon: '🔄'
-  },
-  {
     id: 5,
     title: '星量MCP服务上线管理',
     path: '/mcp-services',
