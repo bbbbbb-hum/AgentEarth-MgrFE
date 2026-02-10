@@ -35,14 +35,14 @@
               <span class="service-id">ID: {{ service.Id }}</span>
               <span class="service-name">{{ service.Name }}</span>
               <span class="service-wemcp">{{ service.WemcpName }}</span>
+            </div>
+            <div class="service-actions">
               <span class="online-badge" :class="service.OnlineStatus === 1 ? 'ready' : 'not-ready'">
                 {{ service.OnlineStatus === 1 ? '就绪' : '未就绪' }}
               </span>
               <span class="status-badge" :class="getStatusClass(service.TestStatus)">
                 {{ getStatusText(service.TestStatus) }}
               </span>
-            </div>
-            <div class="service-actions">
               <button 
                 class="btn btn-sm btn-test"
                 :disabled="service.OnlineStatus !== 1"

@@ -56,3 +56,14 @@ export async function testConfirm(
   });
   return response.json();
 }
+
+/**
+ * 断开连接 - 释放后端 MCP 会话
+ */
+export async function testDisconnect(configId: number): Promise<ApiResponse<{ success: boolean }>> {
+  const response = await authorizedFetch(`${BASE_PATH}/disconnect`, {
+    method: 'POST',
+    body: JSON.stringify({ config_id: configId })
+  });
+  return response.json();
+}

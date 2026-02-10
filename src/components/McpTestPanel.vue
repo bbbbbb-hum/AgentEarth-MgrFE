@@ -227,7 +227,7 @@ import ContentRenderer from './ContentRenderer.vue';
 import JsonView from './JsonView.vue';
 import McpHistoryPanel, { type HistoryEntry } from './McpHistoryPanel.vue';
 import McpNotificationsPanel, { type NotifyEntry, type NotifyLevel } from './McpNotificationsPanel.vue';
-import { testConnect, testCall, testConfirm } from '../api/mcpTest';
+import { testConnect, testCall, testConfirm, testDisconnect } from '../api/mcpTest';
 import type { McpTool, ConnectResponse, CallResponse } from '../types/mcp';
 
 const props = defineProps<{
@@ -408,6 +408,10 @@ const startResize = (e: PointerEvent) => {
 onBeforeUnmount(() => {
   stopResize();
   stopProgressTimer();
+  // 若已连接，通知后端释放会话
+  if (connectionStatus.value === 'connected' && props.configId) {
+    testDisconnect(props.configId).catch(() => {});
+  }
 });
 
 const addEvent = (level: NotifyLevel, message: string, payload?: any) => {
@@ -466,6 +470,10 @@ const connect = async () => {
 };
 
 const disconnect = () => {
+  // 通知后端释放会话
+  if (connectionStatus.value === 'connected' && props.configId) {
+    testDisconnect(props.configId).catch(() => {});
+  }
   connectResult.value = null;
   tools.value = [];
   selectedTool.value = null;

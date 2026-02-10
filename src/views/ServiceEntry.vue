@@ -884,7 +884,7 @@ const handlePageSizeChange = () => {
                 </th>
                 <th :style="getColumnStyle('onlineStatus', 100)">
                   <div class="th-content">
-                    <span class="th-text">上线状态</span>
+                    <span class="th-text">就绪状态</span>
                     <div class="th-actions">
                       <button class="menu-btn" @click.stop="activeFilterField = activeFilterField === 'onlineStatus' ? null : 'onlineStatus'" title="更多选项">
                         ⋯
@@ -910,8 +910,8 @@ const handlePageSizeChange = () => {
                       <div v-if="showFilterInput.onlineStatus" class="filter-input" @click.stop>
                         <select v-model="filters.onlineStatus" @change="fetchServiceList">
                           <option value="">全部</option>
-                          <option value="1">已上线</option>
-                          <option value="0">已下线</option>
+                          <option value="1">已就绪</option>
+                          <option value="0">未就绪</option>
                         </select>
                       </div>
                     </div>
@@ -994,7 +994,7 @@ const handlePageSizeChange = () => {
                   {{ item.TestStatus === 1 ? '已测试' : '未测试' }}
                 </td>
                 <td>
-                  {{ item.OnlineStatus === 1 ? '已上线' : '已下线' }}
+                  {{ item.OnlineStatus === 1 ? '已就绪' : '未就绪' }}
                 </td>
                 <td v-if="!isEditingCell(item.Id, 'Description')" @click="(e) => startCellEdit(item, 'Description', e)" class="description-cell">{{ item.Description }}</td>
                 <td v-else class="editing-cell" @click.stop>
