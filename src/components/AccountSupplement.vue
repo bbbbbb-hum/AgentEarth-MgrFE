@@ -312,6 +312,12 @@ const handleDelete = async () => {
   }
 };
 
+const maskAuthInfo = (value: string): string => {
+  if (!value) return '-';
+  if (value.length <= 4) return '****';
+  return value.substring(0, 2) + '****' + value.substring(value.length - 2);
+};
+
 const formatDate = (dateString: string) => {
   if (!dateString) return '-';
   const date = new Date(dateString);
@@ -539,7 +545,7 @@ watch(() => props.configId, (newConfigId) => {
                     @change="toggleSelection(item.Id)"
                   />
                 </td>
-                <td v-if="!isEditingCell(item.Id, 'AuthInfo')" @click="(e) => startCellEdit(item, 'AuthInfo', e)" data-editable="true" class="auth-info-column" style="width: 50px !important;">{{ item.AuthInfo }}</td>
+                <td v-if="!isEditingCell(item.Id, 'AuthInfo')" @click="(e) => startCellEdit(item, 'AuthInfo', e)" data-editable="true" class="auth-info-column" style="width: 50px !important;">{{ maskAuthInfo(item.AuthInfo) }}</td>
                 <td v-else class="editing-cell auth-info-column" style="width: 50px !important;" @click.stop>
                   <textarea v-model="editingData.AuthInfo" class="inline-textarea" rows="2" @blur="saveEdit(item.Id, true)"></textarea>
                 </td>
