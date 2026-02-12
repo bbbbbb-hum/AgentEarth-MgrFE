@@ -124,105 +124,80 @@ const updateTabServiceName = (path: string, serviceName: string) => {
   }
 };
 
-// 侧边栏菜单项接口
+// 侧边栏菜单项 & 分组接口
 interface SidebarMenuItem {
   id: number;
   title: string;
   path: string;
   icon: string;
-  children?: {
-    id: number;
-    title: string;
-    path: string;
-    icon?: string;
-  }[];
 }
 
-// 侧边栏菜单配置
-const sidebarMenu = ref<SidebarMenuItem[]>([
-  // {
-  //   id: 1,
-  //   title: '首页',
-  //   path: '/',
-  //   icon: '📊'
-  // },
+interface SidebarMenuGroup {
+  id: number;
+  title: string;    // 中文标题，如「MCP 服务治理」
+  subtitle: string; // 英文副标题，如「SERVICE GOVERNANCE」
+  items: SidebarMenuItem[];
+}
+
+// 侧边栏菜单配置（按分组展示，更有层次感）
+const sidebarMenu = ref<SidebarMenuGroup[]>([
+  {
+    id: 1,
+    title: '外部MCP服务',
+    subtitle: 'EXTERNAL MCP SERVICE',
+    items: [
+      {
+        id: 2,
+        title: '外部MCP服务录入',
+        path: '/service-entry',
+        icon: '🖥️'
+      },
+      {
+        id: 3,
+        title: '外部MCP服务测试',
+        path: '/service-test',
+        icon: '🔧'
+      },
+      {
+        id: 4,
+        title: '外部MCP服务上线状态管理',
+        path: '/service-online',
+        icon: '🔄'
+      }
+    ]
+  },
   {
     id: 2,
-    title: '外部MCP服务录入',
-    path: '/service-entry',
-    icon: '🖥️'
+    title: '星量MCP服务',
+    subtitle: 'XINGLIANG MCP SERVICE',
+    items: [
+      {
+        id: 6,
+        title: '星量MCP服务价格管理',
+        path: '/service-price',
+        icon: '💰'
+      }
+    ]
   },
   {
     id: 3,
-    title: '外部MCP服务测试',
-    path: '/service-test',
-    icon: '🔧'
-  },
-  {
-    id: 4,
-    title: '外部MCP服务上线状态管理',
-    path: '/service-online',
-    icon: '🔄'
-  },
-  {
-    id: 5,
-    title: '星量MCP服务价格管理',
-    path: '/service-price',
-    icon: '💰'
-  },
-  {
-    id: 6,
-    title: '星量用户资金管理',
-    path: '/user-fund',
-    icon: '💎'
+    title: '账户管理',
+    subtitle: 'ACCOUNT MANAGEMENT',
+    items: [
+      {
+        id: 7,
+        title: '星量用户资金管理',
+        path: '/user-fund',
+        icon: '💎'
+      }
+    ]
   }
-  // {
-  //   id: 3,
-  //   title: '源数据',
-  //   path: '/data-sources',
-  //   icon: '🗄️',
-  //   children: [
-  //     {
-  //       id: 31,
-  //       title: '外部服务',
-  //       path: '/data-sources'
-  //     },
-  //     {
-  //       id: 32,
-  //       title: '账号列表',
-  //       path: '/accounts'
-  //     }
-  //   ]
-  // },
-  // {
-  //   id: 4,
-  //   title: 'MCP服务',
-  //   path: '/mcp-services',
-  //   icon: '🖥️',
-  //   children: [
-  //     {
-  //       id: 41,
-  //       title: '服务列表',
-  //       path: '/mcp-services'
-  //     },
-  //     {
-  //       id: 42,
-  //       title: '服务信息录入',
-  //       path: '/service-entry'
-  //     },
-  //     {
-  //       id: 43,
-  //       title: '安装列表',
-  //       path: '/install-list'
-  //     },
-  //     {
-  //       id: 44,
-  //       title: '配置账号列表',
-  //       path: '/mcp-service-config-accounts'
-  //     }
-  //   ]
-  // }
 ]);
+
+// 扁平化后的菜单列表，用于根据路径查找标题
+const flatSidebarMenu = computed(() =>
+  sidebarMenu.value.flatMap(group => group.items)
+);
 
 // 切换标签页
 const switchTab = (path: string) => {
@@ -255,37 +230,15 @@ watch(
     // 查找当前路由对应的菜单标题
     let currentTitle = '未知页面';
     
-    // 先搜索所有子菜单
-    for (const menu of sidebarMenu.value) {
-      if (menu.children) {
-        // 先尝试精确匹配
-        const exactSubMenu = menu.children.find(item => item.path === newPath);
-        if (exactSubMenu) {
-          currentTitle = exactSubMenu.title;
-          break;
-        }
-        
-        // 尝试基础路径匹配（用于处理带参数的路由）
-        const basePath = getBasePath(newPath);
-        const baseSubMenu = menu.children.find(item => item.path === basePath);
-        if (baseSubMenu) {
-          // 详情页使用基础标题，不添加"- 详情"后缀
-          currentTitle = baseSubMenu.title;
-          break;
-        }
-      }
-    }
-    
-    // 如果没有找到子菜单匹配项，再搜索主菜单
+    // 先在主菜单中尝试精确匹配
     if (currentTitle === '未知页面') {
-      // 先尝试精确匹配
-      const exactMainMenu = sidebarMenu.value.find(menu => menu.path === newPath);
+      const exactMainMenu = flatSidebarMenu.value.find(menu => menu.path === newPath);
       if (exactMainMenu) {
         currentTitle = exactMainMenu.title;
       } else {
         // 尝试基础路径匹配（用于处理带参数的路由）
         const basePath = getBasePath(newPath);
-        const baseMainMenu = sidebarMenu.value.find(menu => menu.path === basePath);
+        const baseMainMenu = flatSidebarMenu.value.find(menu => menu.path === basePath);
         if (baseMainMenu) {
           // 详情页使用基础标题，不添加"- 详情"后缀
           currentTitle = baseMainMenu.title;
@@ -340,9 +293,19 @@ onMounted(() => {
         
         <!-- 侧边栏菜单 -->
         <nav class="sidebar-menu">
+        <div 
+          v-for="group in sidebarMenu" 
+          :key="group.id"
+          class="menu-group"
+        >
+          <!-- 分组标题（仅在展开时显示） -->
+          <div v-if="sidebarOpen" class="menu-group-header">
+            <div class="menu-group-title">{{ group.title }}</div>
+            <div class="menu-group-subtitle">{{ group.subtitle }}</div>
+          </div>
           <ul>
             <li 
-              v-for="item in sidebarMenu" 
+              v-for="item in group.items" 
               :key="item.id"
               :class="['menu-item', { 'menu-item-active': isActiveMenu(item.path) }]"
             >
@@ -350,18 +313,9 @@ onMounted(() => {
                 <span class="menu-icon">{{ item.icon }}</span>
                 <span v-if="sidebarOpen" class="menu-title">{{ item.title }}</span>
               </router-link>
-              
-              <!-- 子菜单 -->
-              <ul v-if="item.children && sidebarOpen" class="submenu">
-                <li v-for="subitem in item.children" :key="subitem.id" :class="['submenu-item', { 'submenu-item-active': isActiveMenu(subitem.path) }]">
-                  <router-link :to="subitem.path" class="submenu-link">
-                    <span class="submenu-icon">{{ subitem.icon }}</span>
-                    <span class="submenu-title">{{ subitem.title }}</span>
-                  </router-link>
-                </li>
-              </ul>
             </li>
           </ul>
+        </div>
         </nav>
       </aside>
 
@@ -530,6 +484,32 @@ body {
   padding: 12px 0;
   overflow-y: auto;
   overflow-x: hidden;
+}
+
+/* 分组容器：让不同业务域有独立块，增强层次感 */
+.menu-group {
+  margin-bottom: 12px;
+}
+
+/* 分组标题区域：中文 + 英文副标题，偏科技风 */
+.menu-group-header {
+  padding: 8px 20px 4px;
+  opacity: 0.9;
+}
+
+.menu-group-title {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  color: rgba(148, 163, 184, 0.96); /* slate-400 */
+}
+
+.menu-group-subtitle {
+  margin-top: 2px;
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: rgba(100, 116, 139, 0.85); /* slate-500 */
 }
 
 .sidebar-menu ul {
