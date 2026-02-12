@@ -128,7 +128,14 @@ const getRemainingDisplay = (record: FundChangeRecord) => {
   // 没有批次信息或初始金额 <= 0 时，直接按当前批次展示（防御性处理）
   if (!record.batch_id || init <= 0) {
     const displayRemainRaw = Math.max(rawRemain, 0);
-    const overdraftRaw = rawRemain < 0 ? -rawRemain : 0; //如果真实余额为-50，就加负号展示为50
+    // 后端优先：如果提供了 overdraft_amount，则直接使用；否则退回前端基于 remaining_amount 的推断
+    const backendOverdraft = (record as any).overdraft_amount ?? 0;
+    const overdraftRaw =
+      backendOverdraft > 0
+        ? backendOverdraft
+        : rawRemain < 0
+        ? -rawRemain
+        : 0;
     const rawPct = init > 0 ? (displayRemainRaw / init) * 100 : 0;
     const percentText = formatPercent(rawPct, displayRemainRaw);
     return { displayRemain: displayRemainRaw, overdraft: overdraftRaw, percent: rawPct, percentText };
@@ -166,7 +173,13 @@ const getRemainingDisplay = (record: FundChangeRecord) => {
   // 如果全局余额仍为负数：保留原始透支展示（不做虚拟调账）
   if (totalReal < 0) {
     const displayRemainRaw = Math.max(rawRemain, 0);
-    const overdraftRaw = rawRemain < 0 ? -rawRemain : 0;
+    const backendOverdraft = (record as any).overdraft_amount ?? 0;
+    const overdraftRaw =
+      backendOverdraft > 0
+        ? backendOverdraft
+        : rawRemain < 0
+        ? -rawRemain
+        : 0;
     const rawPct = init > 0 ? (displayRemainRaw / init) * 100 : 0;
     const percentText = formatPercent(rawPct, displayRemainRaw);
     return { displayRemain: displayRemainRaw, overdraft: overdraftRaw, percent: rawPct, percentText };
@@ -258,6 +271,18 @@ const getBatchStatusClass = (record: FundChangeRecord): string => {
   if (status === '已耗尽') return 'batch-status-exhausted';
   if (status === '已过期') return 'batch-status-expired';
   return '';
+};
+
+// 已过期批次的“过期时剩余”展示：
+// - 先透支后过期：该批次有透支时，过期时剩余一律展示 0（与后端一致，前端兜底）
+// - 否则以 remaining_at_expire 为准；若为负则取绝对值展示
+const getExpiredRemainDisplay = (record: FundChangeRecord): number => {
+  const overdraft = (record as any).overdraft_amount ?? 0;
+  if (record.batch_status === '已过期' && overdraft > 0) {
+    return 0;
+  }
+  const v = record.remaining_at_expire ?? 0;
+  return v < 0 ? -v : v;
 };
 
 // 状态
@@ -1779,17 +1804,40 @@ onUnmounted(() => {
               <td v-if="recordFilter === 'recharge'">{{ record.initial_amount != null ? formatCurrency(record.initial_amount) : '-' }}</td>
               <td v-if="recordFilter === 'recharge'" class="remaining-cell">
                 <template v-if="record.initial_amount != null && record.initial_amount > 0">
-                  <!-- 已过期：展示「过期时剩余」金额与进度条 -->
+                  <!-- 已过期：展示「过期时剩余」金额与进度条；若当前仍存在透支，则在数字上方额外加“透支”标签 -->
                   <template v-if="record.batch_status === '已过期'">
                     <div class="remaining-compact">
+                      <!-- 过期批次当前仍在承担透支时，叠加一个提示标签；当全局余额回正后 getRemainingDisplay().overdraft 会自动变为 0，不再展示 -->
+                      <div
+                        v-if="getRemainingDisplay(record).overdraft > 0"
+                        class="remaining-overdraft-tag"
+                      >
+                        透支 {{ formatCurrency(getRemainingDisplay(record).overdraft) }}
+                      </div>
                       <div class="remaining-row-top">
-                        <span class="remaining-val remaining-at-expire-label">{{ formatCurrency(record.remaining_at_expire ?? 0) }}</span>
-                        <span class="remaining-percent">{{ record.initial_amount > 0 ? Math.round(((record.remaining_at_expire ?? 0) / record.initial_amount) * 100) : 0 }}%</span>
+                        <!-- 过期时剩余：以 remaining_at_expire 为准；若后端给负数，则按绝对值展示，避免出现“-50.00 过期时剩余” -->
+                        <span class="remaining-val remaining-at-expire-label">
+                          {{ formatCurrency(getExpiredRemainDisplay(record)) }}
+                        </span>
+                        <span class="remaining-percent">
+                          {{
+                            record.initial_amount > 0
+                              ? Math.round(((getExpiredRemainDisplay(record) / record.initial_amount) * 100))
+                              : 0
+                          }}%
+                        </span>
                       </div>
                       <div class="remaining-progress-bg">
                         <div 
                           class="remaining-progress-fill bar-expired"
-                          :style="{ width: Math.min(100, ((record.remaining_at_expire ?? 0) / record.initial_amount) * 100) + '%' }"
+                          :style="{
+                            width: record.initial_amount > 0
+                              ? Math.min(
+                                  100,
+                                  ((getExpiredRemainDisplay(record) / record.initial_amount) * 100)
+                                ) + '%'
+                              : '0%'
+                          }"
                         ></div>
                       </div>
                       <div class="remaining-hint">过期时剩余</div>
@@ -1797,7 +1845,7 @@ onUnmounted(() => {
                   </template>
                   <!-- 使用中/已耗尽：展示当前剩余额度（负值时显示为 0，并额外标红透支标签） -->
                   <div v-else class="remaining-compact">
-                    <!-- 透支标签：放在数值上方 -->
+                    <!-- 透支标签：放在数值上方；仅当 getRemainingDisplay().overdraft > 0（即全局仍有欠款）时展示 -->
                     <div
                       v-if="getRemainingDisplay(record).overdraft > 0"
                       class="remaining-overdraft-tag"
