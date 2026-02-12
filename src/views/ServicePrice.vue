@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, nextTick } from 'vue';
-import { apiBaseUrl, authorizedFetch } from '../http';
 
 interface ServiceItem {
   Id: number;
@@ -51,6 +50,7 @@ const editingCell = ref<{ rowId: number; field: string } | null>(null);
 const editingPrice = ref<number>(0);
 const priceInput = ref<HTMLInputElement | null>(null);
 
+const apiBaseUrl = import.meta.env.BASE_URL;
 
 const isGlobalSelection = ref(false);
 
@@ -125,7 +125,13 @@ const fetchServiceList = async () => {
       params.append('order', sortOrder.value);
     }
 
-    const response = await authorizedFetch(`${apiBaseUrl}api/admin/mcp/service/list?${params.toString()}`, { method: 'GET' });
+    const response = await fetch(`${apiBaseUrl}api/admin/mcp/service/list?${params.toString()}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      credentials: 'include'
+    });
 
     if (!response.ok) {
       if (response.status === 401) {
@@ -213,8 +219,14 @@ const savePrice = async (item: ServiceItem) => {
   }
 
   try {
-    const response = await authorizedFetch(`${apiBaseUrl}api/admin/mcp/service/update/price`, {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${apiBaseUrl}api/admin/mcp/service/update/price`, {
       method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+      },
+      credentials: 'include',
       body: JSON.stringify({
         server_id: item.ServerId,
         price: priceToSave
@@ -329,8 +341,14 @@ const handleBatchUpdatePrice = async () => {
       }
     }
 
-    const response = await authorizedFetch(`${apiBaseUrl}api/admin/mcp/service/batch-update-price`, {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${apiBaseUrl}api/admin/mcp/service/batch-update-price`, {
       method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+      },
+      credentials: 'include',
       body: JSON.stringify(payload)
     });
 

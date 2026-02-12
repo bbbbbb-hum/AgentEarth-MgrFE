@@ -30,7 +30,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { apiBaseUrl, authorizedFetch } from '../http';
 
 const router = useRouter();
 
@@ -74,6 +73,11 @@ const pageSize = ref(20);
 const pageSizeOptions = [10, 20, 50, 100, 200];
 const loading = ref(false);
 const searchKeyword = ref('');
+const apiBaseUrl = import.meta.env.BASE_URL;
+const getAuthHeaders = (): Record<string, string> => {
+  const token = localStorage.getItem('token');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
 
 // 筛选和排序状态
 const filterStatus = ref('all'); // all, active, inactive
@@ -87,7 +91,10 @@ const fetchStats = async () => {
     // 使用完整路径，确保正确代理
     const url = `${apiBaseUrl}api/userfund/stats`;
     console.log('Fetching stats from:', url);
-    const response = await authorizedFetch(url);
+    const response = await fetch(url, {
+      headers: getAuthHeaders(),
+      credentials: 'include',
+    });
     console.log('Stats response status:', response.status, response.statusText);
     if (!response.ok) {
       const errorText = await response.text();
@@ -129,7 +136,10 @@ const fetchUserList = async () => {
     params.append('page', currentPage.value.toString());
     params.append('pageSize', pageSize.value.toString());
 
-    const response = await authorizedFetch(`${apiBaseUrl}api/userfund/list?${params.toString()}`);
+    const response = await fetch(`${apiBaseUrl}api/userfund/list?${params.toString()}`, {
+      headers: getAuthHeaders(),
+      credentials: 'include',
+    });
     if (!response.ok) throw new Error('Failed to fetch user list');
     // 后端直接返回 UserListResp
     const res: UserListResp = await response.json();
