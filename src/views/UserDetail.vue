@@ -273,14 +273,9 @@ const getBatchStatusClass = (record: FundChangeRecord): string => {
   return '';
 };
 
-// 已过期批次的“过期时剩余”展示：
-// - 先透支后过期：该批次有透支时，过期时剩余一律展示 0（与后端一致，前端兜底）
-// - 否则以 remaining_at_expire 为准；若为负则取绝对值展示
+// 已过期批次的“过期时剩余”展示：以后端返回的 remaining_at_expire 为准，若为负则取绝对值展示。
+// 说明：先透支后过期时后端会返回 0，先过期后核销时后端会返回过期扣减金额，前端不再根据透支强制改为 0。
 const getExpiredRemainDisplay = (record: FundChangeRecord): number => {
-  const overdraft = (record as any).overdraft_amount ?? 0;
-  if (record.batch_status === '已过期' && overdraft > 0) {
-    return 0;
-  }
   const v = record.remaining_at_expire ?? 0;
   return v < 0 ? -v : v;
 };
@@ -524,6 +519,14 @@ const fetchFundChangeRecords = async () => {
     if (!response.ok) throw new Error('Failed to fetch fund change records');
     const data: { list: FundChangeRecord[]; total: number } = await response.json();
     fundChangeRecords.value = data.list || [];
+    // 调试：打印接口返回的「已过期」记录的 remaining_at_expire，确认后端是否下发正确
+    (data.list || []).forEach((r: FundChangeRecord, i: number) => {
+      if ((r as any).batch_status === '已过期' || r.remaining_at_expire != null) {
+        console.log(
+          `[资金变动接口] 第${i}条 批次id=${(r as any).batch_id} 变动金额=${r.change_amount} 批次状态=${(r as any).batch_status} 过期时剩余=${r.remaining_at_expire} 透支金额=${(r as any).overdraft_amount}`
+        );
+      }
+    });
     recordTotalFromServer.value = typeof data.total === 'number' ? data.total : 0;
     recordPage.value = clampRecordPage(recordPage.value);
     recordPageInput.value = recordPage.value;
