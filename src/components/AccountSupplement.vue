@@ -314,8 +314,17 @@ const handleDelete = async () => {
 
 const maskAuthInfo = (value: string): string => {
   if (!value) return '-';
-  if (value.length <= 4) return '****';
-  return value.substring(0, 2) + '****' + value.substring(value.length - 2);
+  try {
+    const obj = JSON.parse(value);
+    if (typeof obj !== 'object' || obj === null) return '-';
+    const masked: Record<string, string> = {};
+    for (const [k] of Object.entries(obj)) {
+      masked[k] = '********';
+    }
+    return JSON.stringify(masked);
+  } catch {
+    return '-';
+  }
 };
 
 const formatDate = (dateString: string) => {

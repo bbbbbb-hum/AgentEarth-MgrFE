@@ -146,98 +146,44 @@ interface SidebarMenuItem {
   title: string;
   path: string;
   icon: string;
-  children?: {
-    id: number;
-    title: string;
-    path: string;
-    icon?: string;
-  }[];
 }
 
-// 侧边栏菜单配置
-const sidebarMenu = ref<SidebarMenuItem[]>([
-  // {
-  //   id: 1,
-  //   title: '首页',
-  //   path: '/',
-  //   icon: '📊'
-  // },
+// 侧边栏分组接口
+interface SidebarSection {
+  id: string;
+  titleZh: string;
+  titleEn: string;
+  items: SidebarMenuItem[];
+}
+
+// 侧边栏分组配置
+const sidebarSections = ref<SidebarSection[]>([
   {
-    id: 2,
-    title: '外部MCP服务录入',
-    path: '/service-entry',
-    icon: '🖥️'
+    id: 'external',
+    titleZh: '外部MCP服务',
+    titleEn: 'EXTERNAL MCP SERVICE',
+    items: [
+      { id: 2, title: '外部MCP服务录入', path: '/service-entry', icon: '🖥️' },
+      { id: 3, title: '外部MCP服务测试', path: '/service-test', icon: '🔧' },
+      { id: 5, title: '星量MCP服务上线管理', path: '/mcp-services', icon: '📋' }
+    ]
   },
   {
-    id: 3,
-    title: '外部MCP服务测试',
-    path: '/service-test',
-    icon: '🔧'
+    id: 'xingliang',
+    titleZh: '星量MCP服务',
+    titleEn: 'XINGLIANG MCP SERVICE',
+    items: [
+      { id: 6, title: '星量MCP服务价格管理', path: '/service-price', icon: '💰' }
+    ]
   },
   {
-    id: 5,
-    title: '星量MCP服务上线管理',
-    path: '/mcp-services',
-    icon: '📋'
-  },
-  {
-    id: 6,
-    title: '星量MCP服务价格管理',
-    path: '/service-price',
-    icon: '💰'
-  },
-  {
-    id: 7,
-    title: '星量用户资金管理',
-    path: '/user-fund',
-    icon: '💎'
+    id: 'account',
+    titleZh: '账户管理',
+    titleEn: 'ACCOUNT MANAGEMENT',
+    items: [
+      { id: 7, title: '星量用户资金管理', path: '/user-fund', icon: '💎' }
+    ]
   }
-  // {
-  //   id: 3,
-  //   title: '源数据',
-  //   path: '/data-sources',
-  //   icon: '🗄️',
-  //   children: [
-  //     {
-  //       id: 31,
-  //       title: '外部服务',
-  //       path: '/data-sources'
-  //     },
-  //     {
-  //       id: 32,
-  //       title: '账号列表',
-  //       path: '/accounts'
-  //     }
-  //   ]
-  // },
-  // {
-  //   id: 4,
-  //   title: 'MCP服务',
-  //   path: '/mcp-services',
-  //   icon: '🖥️',
-  //   children: [
-  //     {
-  //       id: 41,
-  //       title: '服务列表',
-  //       path: '/mcp-services'
-  //     },
-  //     {
-  //       id: 42,
-  //       title: '服务信息录入',
-  //       path: '/service-entry'
-  //     },
-  //     {
-  //       id: 43,
-  //       title: '安装列表',
-  //       path: '/install-list'
-  //     },
-  //     {
-  //       id: 44,
-  //       title: '配置账号列表',
-  //       path: '/mcp-service-config-accounts'
-  //     }
-  //   ]
-  // }
 ]);
 
 // 切换标签页
@@ -268,44 +214,20 @@ watch(
       return;
     }
     
-    // 查找当前路由对应的菜单标题
+    // 查找当前路由对应的菜单标题（遍历分组下的 items）
     let currentTitle = '未知页面';
-    
-    // 先搜索所有子菜单
-    for (const menu of sidebarMenu.value) {
-      if (menu.children) {
-        // 先尝试精确匹配
-        const exactSubMenu = menu.children.find(item => item.path === newPath);
-        if (exactSubMenu) {
-          currentTitle = exactSubMenu.title;
-          break;
-        }
-        
-        // 尝试基础路径匹配（用于处理带参数的路由）
-        const basePath = getBasePath(newPath);
-        const baseSubMenu = menu.children.find(item => item.path === basePath);
-        if (baseSubMenu) {
-          // 详情页使用基础标题，不添加"- 详情"后缀
-          currentTitle = baseSubMenu.title;
-          break;
-        }
+    const basePath = getBasePath(newPath);
+
+    for (const section of sidebarSections.value) {
+      const exactItem = section.items.find(item => item.path === newPath);
+      if (exactItem) {
+        currentTitle = exactItem.title;
+        break;
       }
-    }
-    
-    // 如果没有找到子菜单匹配项，再搜索主菜单
-    if (currentTitle === '未知页面') {
-      // 先尝试精确匹配
-      const exactMainMenu = sidebarMenu.value.find(menu => menu.path === newPath);
-      if (exactMainMenu) {
-        currentTitle = exactMainMenu.title;
-      } else {
-        // 尝试基础路径匹配（用于处理带参数的路由）
-        const basePath = getBasePath(newPath);
-        const baseMainMenu = sidebarMenu.value.find(menu => menu.path === basePath);
-        if (baseMainMenu) {
-          // 详情页使用基础标题，不添加"- 详情"后缀
-          currentTitle = baseMainMenu.title;
-        }
+      const baseItem = section.items.find(item => item.path === basePath);
+      if (baseItem) {
+        currentTitle = baseItem.title;
+        break;
       }
     }
       
@@ -371,28 +293,26 @@ watch(() => route.path, () => {
         
         <!-- 侧边栏菜单 -->
         <nav class="sidebar-menu">
-          <ul>
-            <li 
-              v-for="item in sidebarMenu" 
-              :key="item.id"
-              :class="['menu-item', { 'menu-item-active': isActiveMenu(item.path) }]"
-            >
-              <router-link :to="item.path" class="menu-link">
-                <span class="menu-icon">{{ item.icon }}</span>
-                <span v-if="sidebarOpen" class="menu-title">{{ item.title }}</span>
-              </router-link>
-              
-              <!-- 子菜单 -->
-              <ul v-if="item.children && sidebarOpen" class="submenu">
-                <li v-for="subitem in item.children" :key="subitem.id" :class="['submenu-item', { 'submenu-item-active': isActiveMenu(subitem.path) }]">
-                  <router-link :to="subitem.path" class="submenu-link">
-                    <span class="submenu-icon">{{ subitem.icon }}</span>
-                    <span class="submenu-title">{{ subitem.title }}</span>
+          <template v-for="section in sidebarSections" :key="section.id">
+            <div class="menu-section">
+              <div class="section-title" v-if="sidebarOpen">
+                <span class="section-title-zh">{{ section.titleZh }}</span>
+                <span class="section-title-en">{{ section.titleEn }}</span>
+              </div>
+              <ul>
+                <li
+                  v-for="item in section.items"
+                  :key="item.id"
+                  :class="['menu-item', { 'menu-item-active': isActiveMenu(item.path) }]"
+                >
+                  <router-link :to="item.path" class="menu-link">
+                    <span class="menu-icon">{{ item.icon }}</span>
+                    <span v-if="sidebarOpen" class="menu-title">{{ item.title }}</span>
                   </router-link>
                 </li>
               </ul>
-            </li>
-          </ul>
+            </div>
+          </template>
         </nav>
       </aside>
 
@@ -580,6 +500,38 @@ body {
   list-style: none;
   padding: 0;
   margin: 0;
+}
+
+.menu-section {
+  margin-bottom: 20px;
+  padding: 0 12px;
+}
+
+.menu-section:first-child {
+  margin-top: 4px;
+}
+
+.section-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 8px 8px;
+  margin-bottom: 4px;
+}
+
+.section-title-zh {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.85);
+  letter-spacing: 0.3px;
+}
+
+.section-title-en {
+  font-size: 0.65rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.45);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
 }
 
 .menu-item {
