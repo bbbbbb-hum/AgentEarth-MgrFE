@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch, onBeforeUnmount } from 'vue';
+import { apiBaseUrl, authorizedFetch } from '../http';
 
 interface Account {
   Id: number;
@@ -22,6 +23,7 @@ interface ApiResponse {
 
 const props = defineProps<{
   configId: number;
+  serviceName: string;
 }>();
 
 const emit = defineEmits<{
@@ -37,13 +39,12 @@ const currentPage = ref(1);
 const pageSize = ref(10);
 const selectedIds = ref<number[]>([]);
 const isSelectingAll = ref(false);
-const apiBaseUrl = import.meta.env.BASE_URL;
 
 const showAddModal = ref(false);
 const newAccountName = ref('');
 const newAccountAuthInfo = ref('');
 const newAccountConfigId = ref('');
-const newAccountStatus = ref('active');
+const newAccountStatus = ref('used');
 
 const editingCell = ref<{ rowId: number; field: string } | null>(null);
 const editingData = ref<Partial<Account>>({});
@@ -84,12 +85,6 @@ const selectAllAccounts = async () => {
   error.value = '';
   
   try {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      error.value = '请先登录';
-      return;
-    }
-
     const allIds: number[] = [];
     let page = 1;
     const size = 100;
@@ -101,19 +96,9 @@ const selectAllAccounts = async () => {
         config_id: props.configId.toString()
       });
       
-      const response = await fetch(`${apiBaseUrl}api/admin/mcp/service/config/account/list?${params.toString()}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        credentials: 'include'
-      });
+      const response = await authorizedFetch(`${apiBaseUrl}api/admin/mcp/service/config/account/list?${params.toString()}`);
       
       if (!response.ok) {
-        if (response.status === 401) {
-          error.value = '登录已过期，请重新登录';
-          return;
-        }
         throw new Error('Network response was not ok');
       }
       
@@ -149,13 +134,6 @@ const fetchAccounts = async () => {
   error.value = '';
   
   try {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      error.value = '请先登录';
-      loading.value = false;
-      return;
-    }
-
     const params = new URLSearchParams({
       page: currentPage.value.toString(),
       size: pageSize.value.toString(),
@@ -164,21 +142,11 @@ const fetchAccounts = async () => {
     
     console.log('Fetching accounts with params:', params.toString());
     
-    const response = await fetch(`${apiBaseUrl}api/admin/mcp/service/config/account/list?${params.toString()}`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      credentials: 'include'
-    });
+    const response = await authorizedFetch(`${apiBaseUrl}api/admin/mcp/service/config/account/list?${params.toString()}`);
     
     console.log('Response status:', response.status, 'ok:', response.ok);
     
     if (!response.ok) {
-      if (response.status === 401) {
-        error.value = '登录已过期，请重新登录';
-        return;
-      }
       throw new Error(`Network response was not ok: ${response.status}`);
     }
     
@@ -254,7 +222,7 @@ const closeAddModal = () => {
   newAccountName.value = '';
   newAccountAuthInfo.value = '';
   newAccountConfigId.value = '';
-  newAccountStatus.value = 'active';
+  newAccountStatus.value = 'used';
 };
 
 const handleCreateAccount = async () => {
@@ -267,24 +235,11 @@ const handleCreateAccount = async () => {
   error.value = '';
   
   try {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      error.value = '请先登录';
-      loading.value = false;
-      return;
-    }
-
     const configId = props.configId;
-    const account = accounts.value.find(acc => acc.ConfigId === configId);
-    const serviceName = account?.Name || '';
+    const serviceName = props.serviceName;
     
-    const response = await fetch(`${apiBaseUrl}api/admin/mcp/service/config/account/create`, {
+    const response = await authorizedFetch(`${apiBaseUrl}api/admin/mcp/service/config/account/create`, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      credentials: 'include',
       body: JSON.stringify({
         name: serviceName,
         auth_info: newAccountAuthInfo.value,
@@ -326,20 +281,8 @@ const handleDelete = async () => {
   error.value = '';
   
   try {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      error.value = '请先登录';
-      loading.value = false;
-      return;
-    }
-
-    const response = await fetch(`${apiBaseUrl}api/admin/mcp/service/config/account/delete`, {
+    const response = await authorizedFetch(`${apiBaseUrl}api/admin/mcp/service/config/account/delete`, {
       method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      credentials: 'include',
       body: JSON.stringify({
         ids: selectedIds.value
       })
@@ -366,6 +309,21 @@ const handleDelete = async () => {
     console.error('Error deleting accounts:', err);
   } finally {
     loading.value = false;
+  }
+};
+
+const maskAuthInfo = (value: string): string => {
+  if (!value) return '-';
+  try {
+    const obj = JSON.parse(value);
+    if (typeof obj !== 'object' || obj === null) return '-';
+    const masked: Record<string, string> = {};
+    for (const [k] of Object.entries(obj)) {
+      masked[k] = '********';
+    }
+    return JSON.stringify(masked);
+  } catch {
+    return '-';
   }
 };
 
@@ -400,7 +358,7 @@ const saveEdit = async (id: number, isAutoSave: boolean = false) => {
     
     const requestData: any = {
       id: id,
-      name: account?.Name || '',
+      name: props.serviceName,
       status: editingData.value.Status
     };
     
@@ -412,20 +370,8 @@ const saveEdit = async (id: number, isAutoSave: boolean = false) => {
     console.log('Original AuthInfo:', account?.AuthInfo);
     console.log('Editing AuthInfo:', editingData.value.AuthInfo);
     
-    const token = localStorage.getItem('token');
-    if (!token) {
-      error.value = '请先登录';
-      loading.value = false;
-      return;
-    }
-    
-    const response = await fetch(`${apiBaseUrl}api/admin/mcp/service/config/account/update`, {
+    const response = await authorizedFetch(`${apiBaseUrl}api/admin/mcp/service/config/account/update`, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      credentials: 'include',
       body: JSON.stringify(requestData)
     });
     
@@ -472,12 +418,6 @@ const disableOtherAccounts = async (currentAccountId: number) => {
   const currentAccount = accounts.value.find(acc => acc.Id === currentAccountId);
   if (!currentAccount) return;
   
-  const token = localStorage.getItem('token');
-  if (!token) {
-    console.error('No token found, cannot disable other accounts');
-    return;
-  }
-  
   const otherActiveAccounts = accounts.value.filter(
     acc => acc.ConfigId === currentAccount.ConfigId && 
     acc.Status === 'used' && 
@@ -488,16 +428,11 @@ const disableOtherAccounts = async (currentAccountId: number) => {
   
   for (const account of otherActiveAccounts) {
     try {
-      await fetch(`${apiBaseUrl}api/admin/mcp/service/config/account/update`, {
+      await authorizedFetch(`${apiBaseUrl}api/admin/mcp/service/config/account/update`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        credentials: 'include',
         body: JSON.stringify({
           id: account.Id,
-          name: account.Name || '',
+          name: props.serviceName,
           status: 'inactive'
         })
       });
@@ -508,8 +443,7 @@ const disableOtherAccounts = async (currentAccountId: number) => {
 };
 
 const getServiceName = (configId: number): string => {
-  const account = accounts.value.find(acc => acc.ConfigId === configId);
-  return account?.Name || '';
+  return props.serviceName;
 };
 
 const handleTableClick = (event: MouseEvent) => {
@@ -620,7 +554,7 @@ watch(() => props.configId, (newConfigId) => {
                     @change="toggleSelection(item.Id)"
                   />
                 </td>
-                <td v-if="!isEditingCell(item.Id, 'AuthInfo')" @click="(e) => startCellEdit(item, 'AuthInfo', e)" data-editable="true" class="auth-info-column" style="width: 50px !important;">{{ item.AuthInfo }}</td>
+                <td v-if="!isEditingCell(item.Id, 'AuthInfo')" @click="(e) => startCellEdit(item, 'AuthInfo', e)" data-editable="true" class="auth-info-column" style="width: 50px !important;">{{ maskAuthInfo(item.AuthInfo) }}</td>
                 <td v-else class="editing-cell auth-info-column" style="width: 50px !important;" @click.stop>
                   <textarea v-model="editingData.AuthInfo" class="inline-textarea" rows="2" @blur="saveEdit(item.Id, true)"></textarea>
                 </td>
@@ -686,7 +620,7 @@ watch(() => props.configId, (newConfigId) => {
           <div class="form-group">
             <label>服务名称</label>
             <input
-              :value="getServiceName(props.configId)"
+              :value="props.serviceName"
               type="text"
               disabled
               class="disabled-input"

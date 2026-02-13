@@ -1,10 +1,26 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue';
 import { RouterView, useRoute, useRouter } from 'vue-router';
+import { logout } from './http';
 
 const route = useRoute();
 const router = useRouter();
 const sidebarOpen = ref(true);
+
+// 用户信息 - 使用 ref 而不是 computed，因为 localStorage 不是响应式的
+const currentUsername = ref('未登录');
+
+// 登出处理
+const handleLogout = () => {
+  if (confirm('确定要退出登录吗？')) {
+    logout();
+  }
+};
+
+// 更新用户名显示
+const updateUsername = () => {
+  currentUsername.value = localStorage.getItem('username') || '未登录';
+};
 
 // 判断菜单项是否激活
 const isActiveMenu = (path: string) => {
@@ -124,7 +140,7 @@ const updateTabServiceName = (path: string, serviceName: string) => {
   }
 };
 
-// 侧边栏菜单项 & 分组接口
+// 侧边栏菜单项接口
 interface SidebarMenuItem {
   id: number;
   title: string;
@@ -132,72 +148,43 @@ interface SidebarMenuItem {
   icon: string;
 }
 
-interface SidebarMenuGroup {
-  id: number;
-  title: string;    // 中文标题，如「MCP 服务治理」
-  subtitle: string; // 英文副标题，如「SERVICE GOVERNANCE」
+// 侧边栏分组接口
+interface SidebarSection {
+  id: string;
+  titleZh: string;
+  titleEn: string;
   items: SidebarMenuItem[];
 }
 
-// 侧边栏菜单配置（按分组展示，更有层次感）
-const sidebarMenu = ref<SidebarMenuGroup[]>([
+// 侧边栏分组配置
+const sidebarSections = ref<SidebarSection[]>([
   {
-    id: 1,
-    title: '外部MCP服务',
-    subtitle: 'EXTERNAL MCP SERVICE',
+    id: 'external',
+    titleZh: '外部MCP服务',
+    titleEn: 'EXTERNAL MCP SERVICE',
     items: [
-      {
-        id: 2,
-        title: '外部MCP服务录入',
-        path: '/service-entry',
-        icon: '🖥️'
-      },
-      {
-        id: 3,
-        title: '外部MCP服务测试',
-        path: '/service-test',
-        icon: '🔧'
-      },
-      {
-        id: 4,
-        title: '外部MCP服务上线状态管理',
-        path: '/service-online',
-        icon: '🔄'
-      }
+      { id: 2, title: '外部MCP服务录入', path: '/service-entry', icon: '🖥️' },
+      { id: 3, title: '外部MCP服务测试', path: '/service-test', icon: '🔧' },
+      { id: 5, title: '星量MCP服务上线管理', path: '/mcp-services', icon: '📋' }
     ]
   },
   {
-    id: 2,
-    title: '星量MCP服务',
-    subtitle: 'XINGLIANG MCP SERVICE',
+    id: 'xingliang',
+    titleZh: '星量MCP服务',
+    titleEn: 'XINGLIANG MCP SERVICE',
     items: [
-      {
-        id: 6,
-        title: '星量MCP服务价格管理',
-        path: '/service-price',
-        icon: '💰'
-      }
+      { id: 6, title: '星量MCP服务价格管理', path: '/service-price', icon: '💰' }
     ]
   },
   {
-    id: 3,
-    title: '账户管理',
-    subtitle: 'ACCOUNT MANAGEMENT',
+    id: 'account',
+    titleZh: '账户管理',
+    titleEn: 'ACCOUNT MANAGEMENT',
     items: [
-      {
-        id: 7,
-        title: '星量用户资金管理',
-        path: '/user-fund',
-        icon: '💎'
-      }
+      { id: 7, title: '星量用户资金管理', path: '/user-fund', icon: '💎' }
     ]
   }
 ]);
-
-// 扁平化后的菜单列表，用于根据路径查找标题
-const flatSidebarMenu = computed(() =>
-  sidebarMenu.value.flatMap(group => group.items)
-);
 
 // 切换标签页
 const switchTab = (path: string) => {
@@ -227,22 +214,20 @@ watch(
       return;
     }
     
-    // 查找当前路由对应的菜单标题
+    // 查找当前路由对应的菜单标题（遍历分组下的 items）
     let currentTitle = '未知页面';
-    
-    // 先在主菜单中尝试精确匹配
-    if (currentTitle === '未知页面') {
-      const exactMainMenu = flatSidebarMenu.value.find(menu => menu.path === newPath);
-      if (exactMainMenu) {
-        currentTitle = exactMainMenu.title;
-      } else {
-        // 尝试基础路径匹配（用于处理带参数的路由）
-        const basePath = getBasePath(newPath);
-        const baseMainMenu = flatSidebarMenu.value.find(menu => menu.path === basePath);
-        if (baseMainMenu) {
-          // 详情页使用基础标题，不添加"- 详情"后缀
-          currentTitle = baseMainMenu.title;
-        }
+    const basePath = getBasePath(newPath);
+
+    for (const section of sidebarSections.value) {
+      const exactItem = section.items.find(item => item.path === newPath);
+      if (exactItem) {
+        currentTitle = exactItem.title;
+        break;
+      }
+      const baseItem = section.items.find(item => item.path === basePath);
+      if (baseItem) {
+        currentTitle = baseItem.title;
+        break;
       }
     }
       
@@ -262,11 +247,26 @@ watch(
 
 // 监听组件挂载事件
 onMounted(() => {
+  // 初始化用户名显示
+  updateUsername();
+  
   // 添加事件监听，用于接收详情页发送的服务名称
   window.addEventListener('update-tab-service-name', (event: Event) => {
     const customEvent = event as CustomEvent<{ path: string; serviceName: string }>;
     updateTabServiceName(customEvent.detail.path, customEvent.detail.serviceName);
   });
+  
+  // 监听 storage 事件，以便在其他标签页登录时更新用户名
+  window.addEventListener('storage', (event) => {
+    if (event.key === 'username') {
+      updateUsername();
+    }
+  });
+});
+
+// 监听路由变化时也更新用户名（登录后跳转时触发）
+watch(() => route.path, () => {
+  updateUsername();
 });
 </script>
 
@@ -293,29 +293,26 @@ onMounted(() => {
         
         <!-- 侧边栏菜单 -->
         <nav class="sidebar-menu">
-        <div 
-          v-for="group in sidebarMenu" 
-          :key="group.id"
-          class="menu-group"
-        >
-          <!-- 分组标题（仅在展开时显示） -->
-          <div v-if="sidebarOpen" class="menu-group-header">
-            <div class="menu-group-title">{{ group.title }}</div>
-            <div class="menu-group-subtitle">{{ group.subtitle }}</div>
-          </div>
-          <ul>
-            <li 
-              v-for="item in group.items" 
-              :key="item.id"
-              :class="['menu-item', { 'menu-item-active': isActiveMenu(item.path) }]"
-            >
-              <router-link :to="item.path" class="menu-link">
-                <span class="menu-icon">{{ item.icon }}</span>
-                <span v-if="sidebarOpen" class="menu-title">{{ item.title }}</span>
-              </router-link>
-            </li>
-          </ul>
-        </div>
+          <template v-for="section in sidebarSections" :key="section.id">
+            <div class="menu-section">
+              <div class="section-title" v-if="sidebarOpen">
+                <span class="section-title-zh">{{ section.titleZh }}</span>
+                <span class="section-title-en">{{ section.titleEn }}</span>
+              </div>
+              <ul>
+                <li
+                  v-for="item in section.items"
+                  :key="item.id"
+                  :class="['menu-item', { 'menu-item-active': isActiveMenu(item.path) }]"
+                >
+                  <router-link :to="item.path" class="menu-link">
+                    <span class="menu-icon">{{ item.icon }}</span>
+                    <span v-if="sidebarOpen" class="menu-title">{{ item.title }}</span>
+                  </router-link>
+                </li>
+              </ul>
+            </div>
+          </template>
         </nav>
       </aside>
 
@@ -323,6 +320,18 @@ onMounted(() => {
       <main class="main-content">
         <!-- 顶部导航栏 -->
         <div class="top-navbar">
+          <div class="navbar-left">
+            <h2>{{ currentPageTitle }}</h2>
+          </div>
+          <div class="navbar-right">
+            <div class="user-profile">
+              <span class="user-avatar">👤</span>
+              <span class="user-name">{{ currentUsername }}</span>
+              <button class="logout-btn" @click="handleLogout" title="退出登录">
+                🚪 退出
+              </button>
+            </div>
+          </div>
         </div>
         
         <!-- 标签页栏 -->
@@ -345,12 +354,13 @@ onMounted(() => {
           </div>
         </div>
         
-        <!-- 路由视图 - 使用keep-alive缓存组件状态 -->
-        <router-view v-slot="{ Component }">
-          <keep-alive>
-            <component :is="Component" />
-          </keep-alive>
-        </router-view>
+        <div class="route-container">
+          <router-view v-slot="{ Component }">
+            <keep-alive>
+              <component :is="Component" />
+            </keep-alive>
+          </router-view>
+        </div>
       </main>
     </template>
   </div>
@@ -486,36 +496,42 @@ body {
   overflow-x: hidden;
 }
 
-/* 分组容器：让不同业务域有独立块，增强层次感 */
-.menu-group {
-  margin-bottom: 12px;
-}
-
-/* 分组标题区域：中文 + 英文副标题，偏科技风 */
-.menu-group-header {
-  padding: 8px 20px 4px;
-  opacity: 0.9;
-}
-
-.menu-group-title {
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 1px;
-  color: rgba(148, 163, 184, 0.96); /* slate-400 */
-}
-
-.menu-group-subtitle {
-  margin-top: 2px;
-  font-size: 10px;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  color: rgba(100, 116, 139, 0.85); /* slate-500 */
-}
-
 .sidebar-menu ul {
   list-style: none;
   padding: 0;
   margin: 0;
+}
+
+.menu-section {
+  margin-bottom: 20px;
+  padding: 0 12px;
+}
+
+.menu-section:first-child {
+  margin-top: 4px;
+}
+
+.section-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 8px 8px;
+  margin-bottom: 4px;
+}
+
+.section-title-zh {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.85);
+  letter-spacing: 0.3px;
+}
+
+.section-title-en {
+  font-size: 0.65rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.45);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
 }
 
 .menu-item {
@@ -693,9 +709,21 @@ body {
   display: flex;
   flex-direction: column;
   background-color: #f5f7fa;
-  overflow-x: auto; /* 允许横向滚动 */
-  overflow-y: auto; /* 允许垂直滚动 */
+  overflow: hidden;
   transition: width 0.3s ease; /* 与侧边栏折叠动画同步 */
+}
+
+.route-container {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.route-container > * {
+  flex: 1;
+  min-height: 0;
 }
 
 /* 顶部导航栏 */
@@ -711,6 +739,8 @@ body {
   width: 100%;
   min-width: 100%;
 }
+
+/* 顶部导航栏不再需要隐藏空状态 */
 
 .navbar-left h2 {
   font-size: 1.5rem;
@@ -765,6 +795,27 @@ body {
   font-size: 14px;
   color: #303133;
   font-weight: 500;
+}
+
+.logout-btn {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  color: #fff;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-left: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.logout-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(245, 87, 108, 0.4);
 }
 
 /* 标签页栏 */
