@@ -8,34 +8,52 @@
       <div class="service-panel">
         <div class="panel-header">
           <span class="panel-title">已录入服务</span>
-          <button class="btn btn-sm btn-refresh" @click="fetchServices">刷新</button>
+          <div class="header-actions">
+            <div class="search-box">
+              <input 
+                v-model="searchKeyword" 
+                type="text" 
+                placeholder="搜索服务名称..." 
+                @keyup.enter="handleSearch"
+              />
+              <button class="btn btn-sm btn-search" @click="handleSearch">搜索</button>
+            </div>
+            <button class="btn btn-sm btn-refresh" @click="refreshClusterStatus" :disabled="refreshing">
+              {{ refreshing ? '同步中...' : '刷新集群状态' }}
+            </button>
+            <span v-if="syncMessage" class="sync-message" :class="syncMessageClass">{{ syncMessage }}</span>
+          </div>
         </div>
         
         <div class="service-list" v-if="!loading">
           <div 
-            v-for="service in filteredServices" 
+            v-for="service in serviceList" 
             :key="service.Id"
             class="service-item"
           >
             <div class="service-info">
               <span class="service-id">ID: {{ service.Id }}</span>
               <span class="service-name">{{ service.Name }}</span>
-              <span class="type-badge" :class="service.Type">{{ getTypeLabel(service.Type) }}</span>
-              <span class="status-badge" :class="service.TestStatus === 1 ? 'tested' : 'untested'">
-                {{ service.TestStatus === 1 ? '已测试' : '未测试' }}
-              </span>
+              <span class="service-wemcp">{{ service.WemcpName }}</span>
             </div>
             <div class="service-actions">
+              <span class="online-badge" :class="service.OnlineStatus === 1 ? 'ready' : 'not-ready'">
+                {{ service.OnlineStatus === 1 ? '就绪' : '未就绪' }}
+              </span>
+              <span class="status-badge" :class="getStatusClass(service.TestStatus)">
+                {{ getStatusText(service.TestStatus) }}
+              </span>
               <button 
-                class="btn btn-sm"
-                :class="service.TestStatus === 1 ? 'btn-cancel-test' : 'btn-test'"
-                @click="testService(service)"
+                class="btn btn-sm btn-test"
+                :disabled="service.OnlineStatus !== 1"
+                :title="service.OnlineStatus !== 1 ? '请先部署该服务至集群' : '点击测试'"
+                @click="openTestPanel(service)"
               >
-                {{ service.TestStatus === 1 ? '取消测试' : '测试' }}
+                🧪 测试
               </button>
             </div>
           </div>
-          <div v-if="filteredServices.length === 0" class="empty-tip">暂无服务数据</div>
+          <div v-if="serviceList.length === 0" class="empty-tip">暂无服务数据</div>
         </div>
         <div v-else class="loading-tip">加载中...</div>
         
@@ -45,6 +63,12 @@
           </div>
           <div class="pagination-divider">|</div>
           <div class="pagination-controls">
+            <select v-model="pageSize" class="page-size-select" @change="handlePageSizeChange">
+              <option :value="10">10条/页</option>
+              <option :value="20">20条/页</option>
+              <option :value="50">50条/页</option>
+              <option :value="100">100条/页</option>
+            </select>
             <button
               class="btn btn-sm"
               :disabled="currentPage === 1"
@@ -63,30 +87,40 @@
         </div>
       </div>
     </div>
+
+    <!-- 测试面板弹窗 -->
+    <Teleport to="body">
+      <div class="modal-overlay" v-if="showTestPanel" @click.self="closeTestPanel">
+        <div class="modal-container">
+          <McpTestPanel
+            :configId="selectedService!.Id"
+            :serviceName="selectedService!.Name"
+            :wemcpName="selectedService!.WemcpName"
+            @close="closeTestPanel"
+            @confirmed="handleTestConfirmed"
+          />
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
+import { apiBaseUrl, authorizedFetch } from '../http';
+import McpTestPanel from '../components/McpTestPanel.vue';
 
 interface ServiceConfig {
   Id: number;
   Name: string;
-  Type: string;
-  Description: string;
-  ProjectName: string;
-  MaxInstance: number;
   CreateTime: string;
   UpdateTime: string;
-  LaunchInfo: string;
-  ConnectInfo: string;
-  InstallInfo: string;
+  WemcpName: string;
+  Tags: string;
+  Description: string;
   AccountRequired: number;
   TestStatus: number;
   OnlineStatus: number;
-  ExternalServiceId: string;
-  ServerId: string;
-  CreateStatus: boolean;
 }
 
 interface Account {
@@ -114,56 +148,77 @@ const total = ref(0);
 const currentPage = ref(1);
 const pageSize = ref(10);
 const loading = ref(false);
+const refreshing = ref(false);
+const syncMessage = ref('');
+const syncMessageClass = ref('');
 const testedServices = ref<Set<number>>(new Set());
 const accounts = ref<Record<number, Account[]>>({});
 const accountUpdateTime = ref<Record<number, string>>({});
-const apiBaseUrl = import.meta.env.BASE_URL;
-
-const filteredServices = computed(() => {
-  if (!searchKeyword.value.trim()) {
-    return serviceList.value;
-  }
-  const keyword = searchKeyword.value.toLowerCase();
-  return serviceList.value.filter(s => 
-    s.Name.toLowerCase().includes(keyword) ||
-    s.Description?.toLowerCase().includes(keyword)
-  );
-});
 
 const testedCount = computed(() => {
   return testedServices.value.size;
 });
 
-const getTypeLabel = (type: string) => {
-  const typeMap: Record<string, string> = {
-    'stdio': '标准输入输出',
-    'sse': 'SSE连接',
-    'httpStreamable': 'HTTP流'
-  };
-  return typeMap[type] || type;
+// 测试面板状态
+const showTestPanel = ref(false);
+const selectedService = ref<ServiceConfig | null>(null);
+
+// 获取测试状态样式类
+const getStatusClass = (status: number): string => {
+  switch (status) {
+    case 1: return 'tested';
+    case -1: return 'failed';
+    default: return 'untested';
+  }
+};
+
+// 获取测试状态文本
+const getStatusText = (status: number): string => {
+  switch (status) {
+    case 1: return '已通过';
+    case -1: return '已失败';
+    default: return '未测试';
+  }
+};
+
+// 打开测试面板
+const openTestPanel = (service: ServiceConfig) => {
+  selectedService.value = service;
+  showTestPanel.value = true;
+};
+
+// 关闭测试面板
+const closeTestPanel = () => {
+  showTestPanel.value = false;
+  selectedService.value = null;
+};
+
+// 测试确认回调
+const handleTestConfirmed = (status: number) => {
+  if (selectedService.value) {
+    // 更新本地列表中的状态
+    const service = serviceList.value.find(s => s.Id === selectedService.value!.Id);
+    if (service) {
+      service.TestStatus = status;
+    }
+    // 更新已测试集合
+    if (status === 1) {
+      testedServices.value.add(selectedService.value.Id);
+    } else {
+      testedServices.value.delete(selectedService.value.Id);
+    }
+  }
 };
 
 const fetchAccounts = async (configId: number) => {
   try {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      console.error('No token found, cannot fetch accounts');
-      return;
-    }
-
     const params = new URLSearchParams({
       page: '1',
       size: '100',
       config_id: configId.toString()
     });
     
-    const response = await fetch(`${apiBaseUrl}api/admin/mcp/service/config/account/list?${params.toString()}`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      credentials: 'include'
-    });
+    const response = await authorizedFetch(`${apiBaseUrl}api/admin/mcp/service/config/account/list?${params.toString()}`, { method: 'GET' });
     
     if (!response.ok) {
       if (response.status === 401) {
@@ -213,8 +268,12 @@ const fetchServices = async () => {
       page: currentPage.value.toString(),
       size: pageSize.value.toString()
     });
+
+    if (searchKeyword.value.trim()) {
+      params.append('search', searchKeyword.value.trim());
+    }
     
-    const response = await fetch(`${apiBaseUrl}api/admin/data/service-config/list?${params.toString()}`);
+    const response = await authorizedFetch(`${apiBaseUrl}api/admin/data/service-config/list?${params.toString()}`, { method: 'GET' });
     if (!response.ok) throw new Error('Network response was not ok');
     
     const data: ApiResponse = await response.json();
@@ -222,19 +281,12 @@ const fetchServices = async () => {
       serviceList.value = (data.data.list || []).map((item: any) => ({
         Id: item.id,
         Name: item.name,
-        Type: item.type,
         Description: item.description,
-        ProjectName: item.project_name,
-        MaxInstance: item.max_instance,
-        LaunchInfo: item.launch_info,
-        ConnectInfo: item.connect_info,
-        InstallInfo: item.install_info,
+        WemcpName: item.wemcp_name,
+        Tags: Array.isArray(item.tags) ? item.tags.join(',') : '',
         AccountRequired: item.account_required,
         TestStatus: item.test_status,
         OnlineStatus: item.online_status,
-        ExternalServiceId: item.external_service_id,
-        ServerId: item.server_id,
-        CreateStatus: item.create_status,
         CreateTime: item.create_time,
         UpdateTime: item.update_time
       }));
@@ -266,6 +318,78 @@ const fetchServices = async () => {
   }
 };
 
+// 刷新集群状态：调用后端同步 K8s Pod 状态 + 拉取列表
+const refreshClusterStatus = async () => {
+  refreshing.value = true;
+  syncMessage.value = '';
+  loading.value = true;
+  try {
+    const params = new URLSearchParams({
+      page: currentPage.value.toString(),
+      size: pageSize.value.toString()
+    });
+    if (searchKeyword.value.trim()) {
+      params.append('search', searchKeyword.value.trim());
+    }
+
+    const response = await authorizedFetch(`${apiBaseUrl}api/admin/data/refresh-service-online-status?${params.toString()}`, {
+      method: 'POST'
+    });
+    if (!response.ok) throw new Error('Network response was not ok');
+
+    const data = await response.json();
+    if (data.code === 0) {
+      serviceList.value = (data.data.list || []).map((item: any) => ({
+        Id: item.id,
+        Name: item.name,
+        Description: item.description,
+        WemcpName: item.wemcp_name,
+        Tags: Array.isArray(item.tags) ? item.tags.join(',') : '',
+        AccountRequired: item.account_required,
+        TestStatus: item.test_status,
+        OnlineStatus: item.online_status,
+        CreateTime: item.create_time,
+        UpdateTime: item.update_time
+      }));
+      total.value = data.data.total || 0;
+
+      syncMessage.value = data.data.sync_message || '同步完成';
+      syncMessageClass.value = 'sync-success';
+
+      testedServices.value.clear();
+      for (const service of serviceList.value) {
+        if (service.TestStatus === 1) {
+          testedServices.value.add(service.Id);
+        }
+      }
+
+      // 拉取账号
+      const accountPromises: Promise<void>[] = [];
+      for (const service of serviceList.value) {
+        if (service.AccountRequired === 1) {
+          accountPromises.push(fetchAccounts(service.Id));
+        }
+      }
+      await Promise.all(accountPromises);
+    } else {
+      syncMessage.value = data.message || '同步失败';
+      syncMessageClass.value = 'sync-error';
+    }
+  } catch (err) {
+    console.error('Failed to refresh cluster status:', err);
+    syncMessage.value = '请求失败';
+    syncMessageClass.value = 'sync-error';
+  } finally {
+    refreshing.value = false;
+    loading.value = false;
+  }
+};
+
+const handleSearch = () => {
+  currentPage.value = 1;
+  fetchServices();
+};
+
 const goToPreviousPage = () => {
   if (currentPage.value > 1) {
     currentPage.value--;
@@ -280,46 +404,9 @@ const goToNextPage = () => {
   }
 };
 
-const testService = async (service: ServiceConfig) => {
-  try {
-    const newStatus = service.TestStatus === 1 ? 0 : 1;
-    
-    const response = await fetch(`${apiBaseUrl}api/admin/data/update/service-config`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        id: service.Id,
-        test_status: newStatus
-      })
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Failed to update test status:', errorText);
-      alert('更新测试状态失败: ' + errorText);
-      return;
-    }
-    
-    const data = await response.json();
-    if (data.code === 0) {
-      const serviceToUpdate = serviceList.value.find(s => s.Id === service.Id);
-      if (serviceToUpdate) {
-        serviceToUpdate.TestStatus = newStatus;
-      }
-      if (newStatus === 1) {
-        testedServices.value.add(service.Id);
-      } else {
-        testedServices.value.delete(service.Id);
-      }
-    } else {
-      alert('更新测试状态失败: ' + (data.message || '未知错误'));
-    }
-  } catch (err) {
-    console.error('Error updating test status:', err);
-    alert('更新测试状态时发生错误');
-  }
+const handlePageSizeChange = () => {
+  currentPage.value = 1;
+  fetchServices();
 };
 
 onMounted(() => {
@@ -365,6 +452,40 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 16px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.search-box input {
+  padding: 6px 12px;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  width: 200px;
+}
+
+.search-box input:focus {
+  outline: none;
+  border-color: #409eff;
+}
+
+.btn-search {
+  background-color: #409eff;
+  color: #fff;
+}
+
+.btn-search:hover {
+  background-color: #66b1ff;
 }
 
 .panel-title {
@@ -423,7 +544,23 @@ onMounted(() => {
 
 .pagination-controls {
   display: flex;
-  gap: 10px;
+  gap: 8px;
+  align-items: center;
+}
+
+.page-size-select {
+  padding: 6px 12px;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  color: #606266;
+  background-color: #fff;
+  cursor: pointer;
+  outline: none;
+}
+
+.page-size-select:focus {
+  border-color: #409eff;
 }
 
 .service-item {
@@ -514,22 +651,61 @@ onMounted(() => {
   color: #fff;
 }
 
+.status-badge.failed {
+  background-color: #ef4444;
+  color: #fff;
+}
+
 .btn-test {
   background: #3b82f6;
   color: #fff;
 }
 
-.btn-test:hover {
+.btn-test:hover:not(:disabled) {
   background: #2563eb;
 }
 
-.btn-cancel-test {
-  background: #ef4444;
-  color: #fff;
+.btn-test:disabled {
+  background: #d1d5db;
+  color: #9ca3af;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
-.btn-cancel-test:hover {
-  background: #dc2626;
+/* 就绪/未就绪 badge */
+.online-badge {
+  padding: 3px 10px;
+  border-radius: 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.online-badge.ready {
+  background-color: #d1fae5;
+  color: #065f46;
+}
+
+.online-badge.not-ready {
+  background-color: #f3f4f6;
+  color: #9ca3af;
+}
+
+/* 同步消息 */
+.sync-message {
+  font-size: 0.8rem;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.sync-message.sync-success {
+  color: #065f46;
+  background: #d1fae5;
+}
+
+.sync-message.sync-error {
+  color: #991b1b;
+  background: #fee2e2;
 }
 
 .empty-tip {
@@ -595,5 +771,34 @@ onMounted(() => {
 
 .btn-secondary:hover {
   background: #d1d5db;
+}
+
+/* 弹窗样式 */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 8px;
+}
+
+.modal-container {
+  width: 98vw;
+  max-width: none;
+  height: 95vh;
+  max-height: none;
+  background: transparent;
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+  /* 确保子组件正确填充 */
+  display: flex;
+  flex-direction: column;
 }
 </style>

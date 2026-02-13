@@ -3,13 +3,11 @@ import { ref } from 'vue';
 
 interface ServiceConfig {
   Name: string;
-  Type: string;
+  WemcpName: string;
+  Tags: string;
   Description: string;
-  ProjectName: string;
-  MaxInstance: number;
-  LaunchInfo: string;
-  ConnectInfo: string;
-  InstallInfo: string;
+  Comments: string;
+  CodeSourceUrl: string;
   AccountRequired: number;
 }
 
@@ -20,70 +18,33 @@ const emit = defineEmits<{
 
 const formData = ref<ServiceConfig>({
   Name: '',
-  Type: 'stdio',
+  WemcpName: '',
+  Tags: '',
   Description: '',
-  ProjectName: '',
-  MaxInstance: 1,
-  LaunchInfo: JSON.stringify({
-    command: 'node',
-    args: ['server.js'],
-    workdir: '/opt/mcp/service',
-    env: {},
-    max_instance: 1,
-    max_restarts: 3,
-    launch_timeout: 100000,
-    shutdown_timeout: 100000,
-    idle_ttl: 100000000
-  }, null, 2),
-  ConnectInfo: JSON.stringify({
-    url: 'http://localhost:8080/mcp/sse',
-    headers: {},
-    connect_timeout: 3000,
-    max_connect: 10,
-    max_retry: 3,
-    interval: 1000
-  }, null, 2),
-  InstallInfo: '',
-  AccountRequired: 0
+  Comments: '',
+  CodeSourceUrl: '',
+  AccountRequired: 0,
 });
 
 const error = ref('');
-
-const serviceTypes = [
-  { label: '标准输入输出', value: 'stdio' },
-  { label: 'SSE连接', value: 'sse' }
-];
 
 const validateForm = () => {
   if (!formData.value.Name.trim()) {
     error.value = '请输入服务名称';
     return false;
   }
-  if (!formData.value.Type) {
-    error.value = '请选择服务类型';
+  if (!formData.value.WemcpName.trim()) {
+    error.value = '请输入 WemcpName';
+    return false;
+  }
+  if (!/^wemcp2-[a-z0-9]+(?:-[a-z0-9]+)*$/.test(formData.value.WemcpName.trim())) {
+    error.value = 'WemcpName 格式不正确，应类似 wemcp2-qweather';
     return false;
   }
   if (!formData.value.Description.trim()) {
     error.value = '请输入服务描述';
     return false;
   }
-  if (!formData.value.ProjectName.trim()) {
-    error.value = '请输入项目名称';
-    return false;
-  }
-  
-  try {
-    if (formData.value.LaunchInfo) {
-      JSON.parse(formData.value.LaunchInfo);
-    }
-    if (formData.value.ConnectInfo) {
-      JSON.parse(formData.value.ConnectInfo);
-    }
-  } catch (e) {
-    error.value = '启动信息或连接信息格式不正确，必须是有效的JSON格式';
-    return false;
-  }
-  
   error.value = '';
   return true;
 };
@@ -93,16 +54,21 @@ const handleSubmit = () => {
     return;
   }
   
+  const tags = formData.value.Tags
+    .split(',')
+    .map(t => t.trim())
+    .filter(Boolean);
+
   emit('save', {
     name: formData.value.Name,
-    type: formData.value.Type,
+    wemcp_name: formData.value.WemcpName,
+    tags,
     description: formData.value.Description,
-    project_name: formData.value.ProjectName,
-    max_instance: formData.value.MaxInstance,
-    launch_info: formData.value.LaunchInfo,
-    connect_info: formData.value.ConnectInfo,
-    install_info: formData.value.InstallInfo,
-    account_required: formData.value.AccountRequired
+    comments: formData.value.Comments,
+    code_source_url: formData.value.CodeSourceUrl,
+    account_required: formData.value.AccountRequired,
+    test_status: 0,
+    online_status: 0
   });
 };
 
@@ -138,35 +104,35 @@ const handleClose = () => {
             </div>
 
             <div class="form-group">
-              <label for="serviceType">服务类型 <span class="required">*</span></label>
-              <select id="serviceType" v-model="formData.Type" required>
-                <option v-for="type in serviceTypes" :key="type.value" :value="type.value">
-                  {{ type.label }}
-                </option>
-              </select>
+              <label for="wemcpName">WemcpName <span class="required">*</span></label>
+              <input
+                id="wemcpName"
+                v-model="formData.WemcpName"
+                type="text"
+                placeholder="例如：wemcp2-qweather"
+                required
+              />
             </div>
           </div>
 
           <div class="form-row">
             <div class="form-group">
-              <label for="projectName">项目名称 <span class="required">*</span></label>
+              <label for="tags">Tags</label>
               <input
-                id="projectName"
-                v-model="formData.ProjectName"
+                id="tags"
+                v-model="formData.Tags"
                 type="text"
-                placeholder="请输入项目名称"
-                required
+                placeholder="逗号分隔，例如：a,b,c"
               />
             </div>
 
             <div class="form-group">
-              <label for="maxInstance">最大实例数</label>
+              <label for="codeSourceUrl">源地址</label>
               <input
-                id="maxInstance"
-                v-model.number="formData.MaxInstance"
-                type="number"
-                min="1"
-                placeholder="请输入最大实例数"
+                id="codeSourceUrl"
+                v-model="formData.CodeSourceUrl"
+                type="text"
+                placeholder="可选"
               />
             </div>
           </div>
@@ -183,48 +149,23 @@ const handleClose = () => {
           </div>
 
           <div class="form-group">
-            <label for="launchInfo">启动信息 (JSON格式)</label>
+            <label for="comments">备注</label>
             <textarea
-              id="launchInfo"
-              v-model="formData.LaunchInfo"
-              rows="8"
-              placeholder='请输入启动信息，JSON格式，例如：{"command": "node", "args": ["server.js"]}'
-            ></textarea>
-            <small class="form-hint">用于 stdio 类型服务，包含启动命令、参数、工作目录等配置</small>
-          </div>
-
-          <div class="form-group">
-            <label for="connectInfo">连接信息 (JSON格式)</label>
-            <textarea
-              id="connectInfo"
-              v-model="formData.ConnectInfo"
-              rows="8"
-              placeholder='请输入连接信息，JSON格式，例如：{"url": "http://localhost:8080/mcp/sse"}'
-            ></textarea>
-            <small class="form-hint">用于 sse 类型服务，包含连接URL、请求头、超时等配置</small>
-          </div>
-
-          <div class="form-group">
-            <label for="installInfo">安装信息</label>
-            <textarea
-              id="installInfo"
-              v-model="formData.InstallInfo"
+              id="comments"
+              v-model="formData.Comments"
               rows="3"
-              placeholder="请输入安装信息（可选）"
+              placeholder="可选"
             ></textarea>
-            <small class="form-hint">服务克隆仓库安装命令等信息</small>
           </div>
 
-          <div class="form-group checkbox-group">
-            <label class="checkbox-label">
-              <input
-                v-model.number="formData.AccountRequired"
-                type="checkbox"
-                :true-value="1"
-                :false-value="0"
-              />
-              <span>此服务需要账号信息</span>
-            </label>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="accountRequired">需要账号</label>
+              <select id="accountRequired" v-model.number="formData.AccountRequired">
+                <option :value="0">否</option>
+                <option :value="1">是</option>
+              </select>
+            </div>
           </div>
         </form>
       </div>

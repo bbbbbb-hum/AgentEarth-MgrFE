@@ -2,25 +2,21 @@
 import { ref, onMounted, onBeforeUnmount, computed, reactive } from 'vue';
 import AddModal from '../components/AddModal.vue';
 import AccountSupplement from '../components/AccountSupplement.vue';
+import { apiBaseUrl, authorizedFetch } from '../http';
 
 interface ServiceConfig {
   Id: number;
   Name: string;
-  Type: string;
+  WemcpName: string;
+  Tags: string;
   Description: string;
-  ProjectName: string;
-  MaxInstance: number;
+  Comments: string;
+  CodeSourceUrl: string;
   CreateTime: string;
   UpdateTime: string;
-  LaunchInfo: string;
-  ConnectInfo: string;
-  InstallInfo: string;
   AccountRequired: number;
   TestStatus: number;
   OnlineStatus: number;
-  ExternalServiceId: string;
-  ServerId: string;
-  CreateStatus: boolean;
 }
 
 interface ApiResponse {
@@ -60,7 +56,6 @@ const showFilterInput = reactive<Record<string, boolean>>({});
 const sortField = ref<string>('');
 const sortOrder = ref<'asc' | 'desc'>('asc');
 const activeFilterField = ref<string | null>(null);
-const apiBaseUrl = import.meta.env.BASE_URL;
 
 const allSelected = computed({
   get() {
@@ -110,6 +105,9 @@ const selectAllServices = async () => {
       Object.keys(filters).forEach(key => {
         if (filters[key]) {
           let filterKey = key;
+          if (key === 'wemcpName') {
+            filterKey = 'wemcp_name';
+          }
           if (key === 'accountRequired') {
             filterKey = 'account_required';
           }
@@ -123,7 +121,7 @@ const selectAllServices = async () => {
         }
       });
       
-      const response = await fetch(`${apiBaseUrl}api/admin/data/service-config/list?${params.toString()}`);
+      const response = await authorizedFetch(`${apiBaseUrl}api/admin/data/service-config/list?${params.toString()}`, { method: 'GET' });
       
       if (!response.ok) {
         throw new Error('Network response was not ok');
@@ -178,6 +176,9 @@ const fetchServiceList = async () => {
     Object.keys(filters).forEach(key => {
       if (filters[key]) {
         let filterKey = key;
+        if (key === 'wemcpName') {
+          filterKey = 'wemcp_name';
+        }
         if (key === 'accountRequired') {
           filterKey = 'account_required';
         }
@@ -191,7 +192,7 @@ const fetchServiceList = async () => {
       }
     });
     
-    const response = await fetch(`${apiBaseUrl}api/admin/data/service-config/list?${params.toString()}`);
+    const response = await authorizedFetch(`${apiBaseUrl}api/admin/data/service-config/list?${params.toString()}`, { method: 'GET' });
     
     if (!response.ok) {
       throw new Error('Network response was not ok');
@@ -206,19 +207,14 @@ const fetchServiceList = async () => {
       serviceList.value = (data.data.list || []).map((item: any) => ({
         Id: item.id,
         Name: item.name,
-        Type: item.type,
+        WemcpName: item.wemcp_name,
+        Tags: Array.isArray(item.tags) ? item.tags.join(',') : '',
         Description: item.description,
-        ProjectName: item.project_name,
-        MaxInstance: item.max_instance,
-        LaunchInfo: item.launch_info,
-        ConnectInfo: item.connect_info,
-        InstallInfo: item.install_info,
+        Comments: item.comments,
+        CodeSourceUrl: item.code_source_url,
         AccountRequired: item.account_required,
         TestStatus: item.test_status,
         OnlineStatus: item.online_status,
-        ExternalServiceId: item.external_service_id,
-        ServerId: item.server_id,
-        CreateStatus: item.create_status,
         CreateTime: item.create_time,
         UpdateTime: item.update_time
       }));
@@ -390,34 +386,30 @@ const saveEdit = async (id: number, isAutoSave: boolean = false) => {
   error.value = '';
   
   try {
-    const requestData: any = {
-      id: id,
-      name: editingData.value.Name,
-      type: editingData.value.Type,
-      description: editingData.value.Description,
-      project_name: editingData.value.ProjectName,
-      max_instance: editingData.value.MaxInstance
+    const parseTags = (value?: string) => {
+      if (!value) return [];
+      return value
+        .split(',')
+        .map(v => v.trim())
+        .filter(Boolean);
     };
-    
-    if (editingData.value.LaunchInfo && typeof editingData.value.LaunchInfo === 'string' && editingData.value.LaunchInfo.trim() !== '') {
-      requestData.launch_info = editingData.value.LaunchInfo;
-    }
-    
-    if (editingData.value.ConnectInfo && typeof editingData.value.ConnectInfo === 'string' && editingData.value.ConnectInfo.trim() !== '') {
-      requestData.connect_info = editingData.value.ConnectInfo;
-    }
-    
-    if (editingData.value.InstallInfo && typeof editingData.value.InstallInfo === 'string' && editingData.value.InstallInfo.trim() !== '') {
-      requestData.install_info = editingData.value.InstallInfo;
-    }
-    
-    if (typeof editingData.value.AccountRequired !== 'undefined') {
-      requestData.account_required = Number(editingData.value.AccountRequired);
-    }
+
+    const requestData: any = {
+      id,
+      name: editingData.value.Name,
+      description: editingData.value.Description,
+      wemcp_name: editingData.value.WemcpName,
+      tags: parseTags(editingData.value.Tags),
+      comments: editingData.value.Comments,
+      code_source_url: editingData.value.CodeSourceUrl,
+      account_required: typeof editingData.value.AccountRequired !== 'undefined' ? Number(editingData.value.AccountRequired) : undefined,
+      test_status: typeof editingData.value.TestStatus !== 'undefined' ? Number(editingData.value.TestStatus) : undefined,
+      online_status: typeof editingData.value.OnlineStatus !== 'undefined' ? Number(editingData.value.OnlineStatus) : undefined,
+    };
 
     console.log('Sending request:', requestData);
     
-    const response = await fetch(`${apiBaseUrl}api/admin/data/update/service-config`, {
+    const response = await authorizedFetch(`${apiBaseUrl}api/admin/data/update/service-config`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -485,20 +477,37 @@ const handleDelete = async () => {
   console.log('[Delete] 发送删除请求:', JSON.stringify(deleteBody, null, 2));
   
   try {
-    const response = await fetch(`${apiBaseUrl}api/admin/mcp/service/config/delete`, {
+    const response = await authorizedFetch(`${apiBaseUrl}api/admin/mcp/service/config/delete`, {
       method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json'
-      },
       body: JSON.stringify(deleteBody)
     });
     
     console.log('[Delete] 响应状态:', response.status, response.statusText);
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        error.value = '登录已过期，请重新登录';
+        localStorage.removeItem('token');
+        return;
+      }
+      const errorText = await response.text();
+      throw new Error(errorText || '删除失败');
+    }
+
+    const contentType = response.headers.get('content-type') || '';
+    let data: any = null;
+    if (contentType.includes('application/json')) {
+      data = await response.json();
+      console.log('[Delete] 响应数据:', JSON.stringify(data, null, 2));
+    } else {
+      const text = await response.text();
+      data = text ? { code: -1, message: text } : null;
+      if (text) {
+        console.log('[Delete] 响应数据:', text);
+      }
+    }
     
-    const data = await response.json();
-    console.log('[Delete] 响应数据:', JSON.stringify(data, null, 2));
-    
-    if (data.code === 0) {
+    if (!data || data.code === 0) {
       success.value = '删除成功！';
       selectedIds.value = [];
       console.log('[Delete] 删除成功，清空选择并刷新列表');
@@ -506,10 +515,11 @@ const handleDelete = async () => {
       setTimeout(() => {
         success.value = '';
       }, 3000);
-    } else {
-      console.log('[Delete] 删除失败:', data.message);
-      throw new Error(data.message || '删除失败');
+      return;
     }
+
+    console.log('[Delete] 删除失败:', data.message);
+    throw new Error(data.message || '删除失败');
   } catch (err) {
     error.value = err instanceof Error ? err.message : '删除失败';
     console.error('[Delete] 删除异常:', err);
@@ -524,12 +534,15 @@ const handleSave = async (formData: any) => {
   error.value = '';
   
   try {
-    const response = await fetch(`${apiBaseUrl}api/admin/data/create/service-config-manual`, {
+    const normalizedData = {
+      ...formData,
+      account_required: Number(formData?.account_required ?? 0),
+      test_status: 0,
+      online_status: 0
+    };
+    const response = await authorizedFetch(`${apiBaseUrl}api/admin/data/create/service-config-manual`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(formData)
+      body: JSON.stringify(normalizedData)
     });
     
     if (!response.ok) {
@@ -639,6 +652,11 @@ const handlePageChange = (newPage: number) => {
   fetchServiceList();
 };
 
+const handlePageSizeChange = () => {
+  currentPage.value = 1;
+  fetchServiceList();
+};
+
 </script>
 
 <template>
@@ -653,40 +671,40 @@ const handlePageChange = (newPage: number) => {
 
     <div class="content-wrapper">
       <div class="section-header">
-        <h2 class="section-title">外部MCP服务录入</h2>
-      </div>
-      <div class="service-actions">
-        <div class="selection-info">
-          已选择 <span class="selection-count">{{ selectedIds.length }}</span> 条
-        </div>
-        <input
-          v-model="searchKeyword"
-          type="text"
-          placeholder="按名称搜索"
-          @keyup.enter="handleSearch"
-        />
-        <button class="btn btn-primary btn-lg" @click="handleSearch">
-          搜索
-        </button>
-        <button class="btn btn-secondary btn-lg" @click="handleReset">
-          重置
-        </button>
-        <button v-if="Object.keys(filters).length > 0 || sortField" class="btn btn-warning btn-lg" @click="clearFilters">
-          清除筛选
-        </button>
-        <button class="btn btn-primary btn-lg" @click="openAddModal">
-          新增
-        </button>
-        <button
-          class="btn btn-danger btn-lg"
-          :disabled="!hasSelection"
-          @click="handleDelete"
-        >
-          删除
-        </button>
+        <h2 class="section-title">外部MCP服务录入列表</h2>
       </div>
 
       <div class="table-section">
+        <div class="service-actions">
+          <div class="selection-info">
+            已选择 <span class="selection-count">{{ selectedIds.length }}</span> 条
+          </div>
+          <input
+            v-model="searchKeyword"
+            type="text"
+            placeholder="按名称搜索"
+            @keyup.enter="handleSearch"
+          />
+          <button class="btn btn-primary btn-lg" @click="handleSearch">
+            搜索
+          </button>
+          <button class="btn btn-secondary btn-lg" @click="handleReset">
+            重置
+          </button>
+          <button v-if="Object.keys(filters).length > 0 || sortField" class="btn btn-warning btn-lg" @click="clearFilters">
+            清除筛选
+          </button>
+          <button class="btn btn-primary btn-lg" @click="openAddModal">
+            新增
+          </button>
+          <button
+            class="btn btn-danger btn-lg"
+            :disabled="!hasSelection"
+            @click="handleDelete"
+          >
+            删除
+          </button>
+        </div>
         <div class="table-wrapper" ref="tableContainer" @click="handleTableClick">
           <table class="data-table">
             <thead>
@@ -742,42 +760,55 @@ const handlePageChange = (newPage: number) => {
                   </div>
                   <div class="resize-handle" @mousedown="startResize('name', $event)"></div>
                 </th>
-                <th :style="getColumnStyle('type', 120)">
+                <th :style="getColumnStyle('wemcpName', 180)">
                   <div class="th-content">
-                    <span class="th-text">服务类型</span>
+                    <span class="th-text">WemcpName</span>
                     <div class="th-actions">
-                      <button class="menu-btn" @click.stop="activeFilterField = activeFilterField === 'type' ? null : 'type'" title="更多选项">
+                      <button class="menu-btn" @click.stop="activeFilterField = activeFilterField === 'wemcpName' ? null : 'wemcpName'" title="更多选项">
                         ⋯
                       </button>
-                      <div v-if="activeFilterField === 'type'" class="dropdown-menu" @click.stop>
-                        <div class="menu-item" @click="setSort('type', 'asc')">
-                          <span v-if="sortField === 'type' && sortOrder === 'asc'">✓ </span>
+                      <div v-if="activeFilterField === 'wemcpName'" class="dropdown-menu" @click.stop>
+                        <div class="menu-item" @click="setSort('wemcpName', 'asc')">
+                          <span v-if="sortField === 'wemcpName' && sortOrder === 'asc'">✓ </span>
                           升序排序
                         </div>
-                        <div class="menu-item" @click="setSort('type', 'desc')">
-                          <span v-if="sortField === 'type' && sortOrder === 'desc'">✓ </span>
+                        <div class="menu-item" @click="setSort('wemcpName', 'desc')">
+                          <span v-if="sortField === 'wemcpName' && sortOrder === 'desc'">✓ </span>
                           降序排序
                         </div>
-                        <div class="menu-item" @click="clearSort" v-if="sortField === 'type'">
+                        <div class="menu-item" @click="clearSort" v-if="sortField === 'wemcpName'">
                           移除排序
                         </div>
                         <div class="menu-divider"></div>
-                        <div class="menu-item" @click="toggleFilterInput('type')">
-                          <span v-if="showFilterInput.type">✓ </span>
-                          {{ showFilterInput.type ? '移除筛选' : '添加筛选' }}
+                        <div class="menu-item" @click="toggleFilterInput('wemcpName')">
+                          <span v-if="showFilterInput.wemcpName">✓ </span>
+                          {{ showFilterInput.wemcpName ? '移除筛选' : '添加筛选' }}
                         </div>
                       </div>
-                      <div v-if="showFilterInput.type" class="filter-input" @click.stop>
-                        <select v-model="filters.type" @change="fetchServiceList">
-                          <option value="">全部</option>
-                          <option value="stdio">stdio</option>
-                          <option value="sse">sse</option>
-                          <option value="httpStreamable">httpStreamable</option>
-                        </select>
+                      <div v-if="showFilterInput.wemcpName" class="filter-input" @click.stop>
+                        <input
+                          v-model="filters.wemcpName"
+                          type="text"
+                          placeholder="输入 wemcp_name"
+                          @keyup.enter="fetchServiceList"
+                          @input="fetchServiceList"
+                        />
                       </div>
                     </div>
                   </div>
-                  <div class="resize-handle" @mousedown="startResize('type', $event)"></div>
+                  <div class="resize-handle" @mousedown="startResize('wemcpName', $event)"></div>
+                </th>
+                <th :style="getColumnStyle('tags', 160)">
+                  Tags
+                  <div class="resize-handle" @mousedown="startResize('tags', $event)"></div>
+                </th>
+                <th :style="getColumnStyle('codeSourceUrl', 200)">
+                  源地址
+                  <div class="resize-handle" @mousedown="startResize('codeSourceUrl', $event)"></div>
+                </th>
+                <th :style="getColumnStyle('comments', 160)">
+                  备注
+                  <div class="resize-handle" @mousedown="startResize('comments', $event)"></div>
                 </th>
                 <th :style="getColumnStyle('accountRequired', 120)">
                   <div class="th-content">
@@ -853,7 +884,7 @@ const handlePageChange = (newPage: number) => {
                 </th>
                 <th :style="getColumnStyle('onlineStatus', 100)">
                   <div class="th-content">
-                    <span class="th-text">上线状态</span>
+                    <span class="th-text">就绪状态</span>
                     <div class="th-actions">
                       <button class="menu-btn" @click.stop="activeFilterField = activeFilterField === 'onlineStatus' ? null : 'onlineStatus'" title="更多选项">
                         ⋯
@@ -879,49 +910,17 @@ const handlePageChange = (newPage: number) => {
                       <div v-if="showFilterInput.onlineStatus" class="filter-input" @click.stop>
                         <select v-model="filters.onlineStatus" @change="fetchServiceList">
                           <option value="">全部</option>
-                          <option value="1">已上线</option>
-                          <option value="0">已下线</option>
+                          <option value="1">已就绪</option>
+                          <option value="0">未就绪</option>
                         </select>
                       </div>
                     </div>
                   </div>
                   <div class="resize-handle" @mousedown="startResize('onlineStatus', $event)"></div>
                 </th>
-                <th :style="getColumnStyle('externalServiceId', 150)">
-                  外部服务ID
-                  <div class="resize-handle" @mousedown="startResize('externalServiceId', $event)"></div>
-                </th>
-                <th :style="getColumnStyle('serverId', 150)">
-                  服务ID
-                  <div class="resize-handle" @mousedown="startResize('serverId', $event)"></div>
-                </th>
-                <th :style="getColumnStyle('createStatus', 100)">
-                  创建状态
-                  <div class="resize-handle" @mousedown="startResize('createStatus', $event)"></div>
-                </th>
-                <th :style="getColumnStyle('project', 150)">
-                  项目名称
-                  <div class="resize-handle" @mousedown="startResize('project', $event)"></div>
-                </th>
-                <th :style="getColumnStyle('maxInstance', 100)">
-                  最大实例数
-                  <div class="resize-handle" @mousedown="startResize('maxInstance', $event)"></div>
-                </th>
                 <th :style="getColumnStyle('description', 200)">
                   描述
                   <div class="resize-handle" @mousedown="startResize('description', $event)"></div>
-                </th>
-                <th :style="getColumnStyle('launchInfo', 200)">
-                  启动信息
-                  <div class="resize-handle" @mousedown="startResize('launchInfo', $event)"></div>
-                </th>
-                <th :style="getColumnStyle('connectInfo', 200)">
-                  连接信息
-                  <div class="resize-handle" @mousedown="startResize('connectInfo', $event)"></div>
-                </th>
-                <th :style="getColumnStyle('installInfo', 200)">
-                  安装信息
-                  <div class="resize-handle" @mousedown="startResize('installInfo', $event)"></div>
                 </th>
                 <th :style="getColumnStyle('createTime', 180)">
                   创建时间
@@ -935,12 +934,12 @@ const handlePageChange = (newPage: number) => {
             </thead>
             <tbody>
               <tr v-if="loading && serviceList.length === 0">
-                <td colspan="18" class="loading-cell">
+                <td colspan="13" class="loading-cell">
                   加载中...
                 </td>
               </tr>
               <tr v-else-if="serviceList.length === 0">
-                <td colspan="18" class="empty-cell">
+                <td colspan="13" class="empty-cell">
                   {{ isSearching ? '未找到该服务' : '暂无数据' }}
                 </td>
               </tr>
@@ -957,20 +956,25 @@ const handlePageChange = (newPage: number) => {
                 <td v-else class="editing-cell" @click.stop>
                   <input v-model="editingData.Name" type="text" class="inline-input" />
                 </td>
-                <td v-if="!isEditingCell(item.Id, 'Type')" @click="(e) => startCellEdit(item, 'Type', e)">
-                  <span class="type-badge" :class="item.Type">
-                    {{ getTypeLabel(item.Type) }}
-                  </span>
-                </td>
+                <td v-if="!isEditingCell(item.Id, 'WemcpName')" @click="(e) => startCellEdit(item, 'WemcpName', e)">{{ item.WemcpName }}</td>
                 <td v-else class="editing-cell" @click.stop>
-                  <select v-model="editingData.Type" class="inline-input" @change="saveEdit(item.Id, true)">
-                    <option value="stdio">标准输入输出</option>
-                    <option value="sse">SSE连接</option>
-                  </select>
+                  <input v-model="editingData.WemcpName" type="text" class="inline-input" />
+                </td>
+                <td v-if="!isEditingCell(item.Id, 'Tags')" @click="(e) => startCellEdit(item, 'Tags', e)">{{ item.Tags }}</td>
+                <td v-else class="editing-cell" @click.stop>
+                  <input v-model="editingData.Tags" type="text" class="inline-input" />
+                </td>
+                <td v-if="!isEditingCell(item.Id, 'CodeSourceUrl')" @click="(e) => startCellEdit(item, 'CodeSourceUrl', e)">{{ item.CodeSourceUrl }}</td>
+                <td v-else class="editing-cell" @click.stop>
+                  <input v-model="editingData.CodeSourceUrl" type="text" class="inline-input" />
+                </td>
+                <td v-if="!isEditingCell(item.Id, 'Comments')" @click="(e) => startCellEdit(item, 'Comments', e)">{{ item.Comments }}</td>
+                <td v-else class="editing-cell" @click.stop>
+                  <input v-model="editingData.Comments" type="text" class="inline-input" />
                 </td>
                 <td v-if="!isEditingCell(item.Id, 'AccountRequired')" @click="(e) => startCellEdit(item, 'AccountRequired', e)">
                   <div class="account-required-cell">
-                    <span v-if="item.AccountRequired !== 1">{{ item.AccountRequired === 1 ? '是' : '否' }}</span>
+                    <span>{{ item.AccountRequired === 1 ? '是' : '否' }}</span>
                     <button
                       v-if="item.AccountRequired === 1"
                       class="account-supplement-btn"
@@ -990,46 +994,11 @@ const handlePageChange = (newPage: number) => {
                   {{ item.TestStatus === 1 ? '已测试' : '未测试' }}
                 </td>
                 <td>
-                  {{ item.OnlineStatus === 1 ? '已上线' : '已下线' }}
-                </td>
-                <td v-if="!isEditingCell(item.Id, 'ExternalServiceId')" @click="(e) => startCellEdit(item, 'ExternalServiceId', e)">{{ item.ExternalServiceId }}</td>
-                <td v-else class="editing-cell" @click.stop>
-                  <input v-model="editingData.ExternalServiceId" type="text" class="inline-input" />
-                </td>
-                <td v-if="!isEditingCell(item.Id, 'ServerId')" @click="(e) => startCellEdit(item, 'ServerId', e)">{{ item.ServerId }}</td>
-                <td v-else class="editing-cell" @click.stop>
-                  <input v-model="editingData.ServerId" type="text" class="inline-input" />
-                </td>
-                <td v-if="!isEditingCell(item.Id, 'CreateStatus')" @click="(e) => startCellEdit(item, 'CreateStatus', e)">{{ item.CreateStatus ? '已创建' : '未创建' }}</td>
-                <td v-else class="editing-cell" @click.stop>
-                  <select v-model="editingData.CreateStatus" class="inline-input" @change="saveEdit(item.Id, true)">
-                    <option :value="false">未创建</option>
-                    <option :value="true">已创建</option>
-                  </select>
-                </td>
-                <td v-if="!isEditingCell(item.Id, 'ProjectName')" @click="(e) => startCellEdit(item, 'ProjectName', e)">{{ item.ProjectName }}</td>
-                <td v-else class="editing-cell" @click.stop>
-                  <input v-model="editingData.ProjectName" type="text" class="inline-input" />
-                </td>
-                <td v-if="!isEditingCell(item.Id, 'MaxInstance')" @click="(e) => startCellEdit(item, 'MaxInstance', e)" class="max-instance-cell">{{ item.MaxInstance }}</td>
-                <td v-else class="editing-cell" @click.stop>
-                  <input v-model.number="editingData.MaxInstance" type="number" class="inline-input" min="1" />
+                  {{ item.OnlineStatus === 1 ? '已就绪' : '未就绪' }}
                 </td>
                 <td v-if="!isEditingCell(item.Id, 'Description')" @click="(e) => startCellEdit(item, 'Description', e)" class="description-cell">{{ item.Description }}</td>
                 <td v-else class="editing-cell" @click.stop>
                   <textarea v-model="editingData.Description" class="inline-textarea" rows="2"></textarea>
-                </td>
-                <td v-if="!isEditingCell(item.Id, 'LaunchInfo')" @click="(e) => startCellEdit(item, 'LaunchInfo', e)" class="description-cell">{{ item.LaunchInfo }}</td>
-                <td v-else class="editing-cell" @click.stop>
-                  <textarea v-model="editingData.LaunchInfo" class="inline-textarea" rows="2"></textarea>
-                </td>
-                <td v-if="!isEditingCell(item.Id, 'ConnectInfo')" @click="(e) => startCellEdit(item, 'ConnectInfo', e)" class="description-cell">{{ item.ConnectInfo }}</td>
-                <td v-else class="editing-cell" @click.stop>
-                  <textarea v-model="editingData.ConnectInfo" class="inline-textarea" rows="2"></textarea>
-                </td>
-                <td v-if="!isEditingCell(item.Id, 'InstallInfo')" @click="(e) => startCellEdit(item, 'InstallInfo', e)" class="description-cell">{{ item.InstallInfo }}</td>
-                <td v-else class="editing-cell" @click.stop>
-                  <textarea v-model="editingData.InstallInfo" class="inline-textarea" rows="2"></textarea>
                 </td>
                 <td>{{ formatDate(item.CreateTime) }}</td>
                 <td>{{ formatDate(item.UpdateTime) }}</td>
@@ -1044,6 +1013,12 @@ const handlePageChange = (newPage: number) => {
           </div>
           <div class="pagination-divider">|</div>
           <div class="pagination-controls">
+            <select v-model="pageSize" class="page-size-select" @change="handlePageSizeChange">
+              <option :value="10">10条/页</option>
+              <option :value="20">20条/页</option>
+              <option :value="50">50条/页</option>
+              <option :value="100">100条/页</option>
+            </select>
             <button
               class="btn btn-sm"
               :disabled="currentPage === 1"
@@ -1071,6 +1046,7 @@ const handlePageChange = (newPage: number) => {
     <AccountSupplement
       v-if="accountSupplementConfigId !== null"
       :config-id="accountSupplementConfigId"
+      :service-name="serviceList.find(s => s.Id === accountSupplementConfigId)?.Name || ''"
       @close="closeAccountSupplement"
     />
   </div>
@@ -1079,7 +1055,6 @@ const handlePageChange = (newPage: number) => {
 <style scoped>
 .service-list-container {
   padding: 20px;
-  margin: 0 auto;
 }
 
 .page-header {
@@ -1127,15 +1102,14 @@ const handlePageChange = (newPage: number) => {
 }
 
 .section-header {
-  margin-bottom: 0.5px;
-  padding-bottom: 10px;
+  padding-bottom: 15px;
   border-bottom: 2px solid #e0e6ed;
 }
 
 .service-actions {
   display: flex;
   gap: 10px;
-  margin-bottom: 0.5px;
+  margin-bottom: 20px;
   align-items: center;
 }
 
@@ -1155,6 +1129,9 @@ const handlePageChange = (newPage: number) => {
 .selection-info {
   font-size: 0.9rem;
   color: #7f8c8d;
+  height: 36px;
+  display: flex;
+  align-items: center;
 }
 
 .selection-count {
@@ -1165,11 +1142,13 @@ const handlePageChange = (newPage: number) => {
 
 .service-actions input {
   width: 120px;
-  padding: 8px 20px;
+  height: 36px;
+  padding: 0 15px;
   border: 1px solid #d0d7de;
   border-radius: 6px;
   font-size: 0.9rem;
   transition: all 0.3s ease;
+  box-sizing: border-box;
 }
 
 .service-actions input:focus {
@@ -1181,13 +1160,13 @@ const handlePageChange = (newPage: number) => {
 .table-section {
   background-color: #fff;
   border-radius: 8px;
-  padding: 20px;
+  padding: 16px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .table-wrapper {
   overflow-x: auto;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 
 .data-table {
@@ -1522,6 +1501,22 @@ const handlePageChange = (newPage: number) => {
 .pagination-controls {
   display: flex;
   gap: 10px;
+  align-items: center;
+}
+
+.page-size-select {
+  padding: 6px 12px;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  color: #606266;
+  background-color: #fff;
+  cursor: pointer;
+  outline: none;
+}
+
+.page-size-select:focus {
+  border-color: #409eff;
 }
 
 .btn {
@@ -1545,8 +1540,12 @@ const handlePageChange = (newPage: number) => {
 }
 
 .btn-lg {
-  padding: 8px 20px;
+  height: 36px;
+  padding: 0 20px;
   font-size: 0.9rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .btn-primary {
