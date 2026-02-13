@@ -164,8 +164,7 @@ const sidebarSections = ref<SidebarSection[]>([
     titleEn: 'EXTERNAL MCP SERVICE',
     items: [
       { id: 2, title: '外部MCP服务录入', path: '/service-entry', icon: '🖥️' },
-      { id: 3, title: '外部MCP服务测试', path: '/service-test', icon: '🔧' },
-      { id: 5, title: '星量MCP服务上线管理', path: '/mcp-services', icon: '📋' }
+      { id: 3, title: '外部MCP服务测试', path: '/service-test', icon: '🔧' }
     ]
   },
   {
@@ -173,6 +172,7 @@ const sidebarSections = ref<SidebarSection[]>([
     titleZh: '星量MCP服务',
     titleEn: 'XINGLIANG MCP SERVICE',
     items: [
+      { id: 5, title: '星量MCP服务上线管理', path: '/mcp-services', icon: '📋' },
       { id: 6, title: '星量MCP服务价格管理', path: '/service-price', icon: '💰' }
     ]
   },
