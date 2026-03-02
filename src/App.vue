@@ -181,7 +181,8 @@ const sidebarSections = ref<SidebarSection[]>([
     titleZh: '账户管理',
     titleEn: 'ACCOUNT MANAGEMENT',
     items: [
-      { id: 7, title: '星量用户资金管理', path: '/user-fund', icon: '💎' }
+      { id: 7, title: '星量用户资金管理', path: '/user-fund', icon: '💎' },
+      { id: 8, title: '星量自动充值规则配置', path: '/rules', icon: '⚙️' }
     ]
   }
 ]);
