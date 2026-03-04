@@ -12,7 +12,6 @@ interface RuleItem {
   id: number;
   name: string;
   description: string;
-  priority: number;
   is_active: boolean;
   cron_expression: string;
   filter_config: string;
@@ -28,6 +27,7 @@ interface DashboardResp {
 
 interface RunItem {
   run_time: string;
+  charge_source: number;
   exec_source: string;
   total_count: number;
   success_count: number;
@@ -42,7 +42,6 @@ interface DetailItem {
   operator: string;
   change_amount: number;
   status: string;
-  remark: string;
 }
 
 const list = ref<RuleItem[]>([]);
@@ -62,7 +61,6 @@ const form = ref({
   name: '',
   description: '',
   is_active: true,
-  priority: 0,
   triggerMode: 'cron' as TriggerMode,
   frequency: 'monthly' as Frequency,
   dayOfMonth: 1,
@@ -120,8 +118,23 @@ const sourceText = (v: string) => (v === 'manual' ? '手动' : '自动');
 const parseAmountText = (cfg: string) => {
   try {
     const c = JSON.parse(cfg || '{}');
-    const sign = c.type === 'deduct_points' ? '-' : '+';
-    return `${sign} ${Number(c.amount || 0).toLocaleString('zh-CN')}`;
+
+    // 新版：从 actions 数组中取第一个 recharge 动作
+    let amount = 0;
+    let type = 'add_points';
+    if (Array.isArray(c.actions) && c.actions.length > 0) {
+      const first = c.actions.find((a: any) => a.action_type === 'recharge') || c.actions[0];
+      const body = first.action_body || {};
+      amount = Number(body.amount || 0);
+      type = first.action_type || 'recharge';
+    } else {
+      // 兼容旧版：顶层 type/amount
+      amount = Number(c.amount || 0);
+      type = c.type || 'add_points';
+    }
+
+    const sign = type === 'deduct_points' ? '-' : '+';
+    return `${sign} ${Number(amount || 0).toLocaleString('zh-CN')}`;
   } catch {
     return '-';
   }
@@ -168,7 +181,6 @@ const resetForm = () => {
     name: '',
     description: '',
     is_active: true,
-    priority: 0,
     triggerMode: 'cron',
     frequency: 'monthly',
     dayOfMonth: 1,
@@ -203,7 +215,6 @@ const parseRuleForEdit = (item: RuleItem) => {
   form.value.name = item.name;
   form.value.description = item.description || '';
   form.value.is_active = item.is_active;
-  form.value.priority = item.priority || 0;
 
   const p = (item.cron_expression || '').trim().split(/\s+/);
   if (p.length === 5) {
@@ -260,18 +271,32 @@ const parseRuleForEdit = (item: RuleItem) => {
   try {
     const ac = JSON.parse(item.action_config || '{}');
     form.value.actionKind = 'recharge';
-    form.value.actionAmount = Number(ac.amount || 5000);
     form.value.customExpireDate = '';
-    const s = String(ac.expire_strategy || '').trim();
-    if (s === 'fixed_days' || s === 'fixed_30_days') {
+
+    // 新版结构：{ actions:[{ action_type, action_body:{ amount, expire_strategy, ... } }] }
+    let amount = 5000;
+    let strategy = 'month_end';
+    if (Array.isArray(ac.actions) && ac.actions.length > 0) {
+      let first = ac.actions.find((a: any) => a.action_type === 'recharge') || ac.actions[0];
+      const body = first.action_body || {};
+      amount = Number(body.amount || 5000);
+      strategy = String(body.expire_strategy || '').trim();
+    } else {
+      // 兼容旧格式：{ type, amount, expire_strategy }
+      amount = Number(ac.amount || 5000);
+      strategy = String(ac.expire_strategy || '').trim();
+    }
+
+    form.value.actionAmount = amount;
+    if (strategy === 'fixed_30_days') {
       form.value.expireStrategy = 'fixed_30_days';
-    } else if (s === 'never') {
+    } else if (strategy === 'never') {
       form.value.expireStrategy = 'never';
-    } else if (s === 'month_end' || !s) {
+    } else if (strategy === 'month_end' || !strategy) {
       form.value.expireStrategy = 'month_end';
-    } else if (s.startsWith('date:')) {
+    } else if (strategy.startsWith('date:')) {
       form.value.expireStrategy = 'custom_date';
-      form.value.customExpireDate = s.slice(5);
+      form.value.customExpireDate = strategy.slice(5);
     } else {
       form.value.expireStrategy = 'month_end';
     }
@@ -529,7 +554,7 @@ const saveRule = async () => {
     } else {
       expire = form.value.expireStrategy;
     }
-    const actionType = 'add_points';
+    const actionType = 'recharge';
 
     // Map activeFilters to form fields for backend compatibility
     form.value.minRegDays = 0;
@@ -550,16 +575,16 @@ const saveRule = async () => {
       } else if (f.type === 'last_login') {
         form.value.lastLoginWithinDays = f.days || 0;
       } else if (f.type === 'last_month_consume') {
-        form.value.minLastMonthConsume = f.min || 0;
-        form.value.maxLastMonthConsume = f.max || 0;
+        form.value.minLastMonthConsume = typeof f.min === 'number' ? f.min : 0;
+        form.value.maxLastMonthConsume = typeof f.max === 'number' ? f.max : 0;
       } else if (f.type === 'balance') {
-        form.value.minBalance = f.min >= 0 ? f.min : -1;
-        form.value.maxBalance = f.max >= 0 ? f.max : -1;
+        form.value.minBalance = typeof f.min === 'number' && f.min >= 0 ? f.min : -1;
+        form.value.maxBalance = typeof f.max === 'number' && f.max >= 0 ? f.max : -1;
       } else if (f.type === 'reg_channel') {
         form.value.regChannel = (f.channel || '').trim();
-    } else if (f.type === 'history_recharge') {
-      form.value.minHistoryRecharge = f.min || 0;
-      form.value.maxHistoryRecharge = f.max || 0;
+      } else if (f.type === 'history_recharge') {
+        form.value.minHistoryRecharge = typeof f.min === 'number' ? f.min : 0;
+        form.value.maxHistoryRecharge = typeof f.max === 'number' ? f.max : 0;
       }
     }
 
@@ -570,7 +595,6 @@ const saveRule = async () => {
         name: form.value.name.trim(),
         description: form.value.description.trim(),
         is_active: form.value.is_active,
-        priority: form.value.priority,
         frequency: form.value.frequency,
         day_of_month: form.value.dayOfMonth,
         day_of_week: form.value.dayOfWeek,
@@ -584,8 +608,8 @@ const saveRule = async () => {
         min_balance: form.value.minBalance >= 0 ? form.value.minBalance : -1,
         max_balance: form.value.maxBalance >= 0 ? form.value.maxBalance : -1,
         reg_channel: form.value.regChannel,
-        min_history_recharge: form.value.minHistoryRecharge,
-        max_history_recharge: form.value.maxHistoryRecharge,
+        min_history_recharge: Number(form.value.minHistoryRecharge || 0),
+        max_history_recharge: Number(form.value.maxHistoryRecharge || 0),
         // Also save the full filter list for future use/UI restore
         filters: activeFilters.value,
         action_type: actionType,
@@ -673,7 +697,7 @@ const selectRun = async (run: RunItem) => {
     const q = new URLSearchParams({
       rule_id: String(reconRule.value?.id || 0),
       run_time: run.run_time,
-      exec_source: run.exec_source
+      charge_source: String(run.charge_source)
     });
     const resp = await authorizedFetch(`api/rules/execution/details?${q.toString()}`, { method: 'GET' });
     const data = await resp.json();
@@ -734,17 +758,16 @@ onMounted(async () => {
             <th>规则名称</th>
             <th>触发条件</th>
             <th>变动金额</th>
-            <th>优先级</th>
             <th>状态</th>
             <th>对账与操作</th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="loading">
-            <td colspan="7" class="empty">加载中...</td>
+            <td colspan="6" class="empty">加载中...</td>
           </tr>
           <tr v-else-if="!list.length">
-            <td colspan="7" class="empty">暂无规则</td>
+            <td colspan="6" class="empty">暂无规则</td>
           </tr>
           <tr v-else v-for="item in list" :key="item.id">
             <td>{{ item.id }}</td>
@@ -754,7 +777,6 @@ onMounted(async () => {
             </td>
             <td><span class="chip">定时执行 (Cron)</span>{{ item.cron_expression }}</td>
             <td><span :class="parseAmountClass(item.action_config)">{{ parseAmountText(item.action_config) }}</span></td>
-            <td>{{ item.priority }}</td>
             <td>
               <label class="switch">
                 <input type="checkbox" :checked="item.is_active" @change="toggleRule(item)" />
@@ -812,7 +834,6 @@ onMounted(async () => {
                 <div class="form-grid one">
                   <label>规则名称<input v-model="form.name" placeholder="例如：每月普惠赠送" /></label>
                   <label>规则描述<input v-model="form.description" placeholder="备注信息" /></label>
-                  <label>优先级<input v-model.number="form.priority" type="number" min="0" /></label>
                   <label class="inline-check"><input v-model="form.is_active" type="checkbox" /> 立即启用</label>
                 </div>
               </section>
@@ -1088,10 +1109,10 @@ onMounted(async () => {
             </h4>
             <div class="table-scroll">
               <table class="detail-table">
-                <thead><tr><th>触发时间</th><th>来源</th><th>被充值用户</th><th>操作人</th><th>变动额</th><th>状态</th><th>备注</th></tr></thead>
+                <thead><tr><th>触发时间</th><th>来源</th><th>被充值用户</th><th>操作人</th><th>变动额</th><th>状态</th></tr></thead>
                 <tbody>
-                  <tr v-if="detailLoading"><td colspan="7" class="empty">加载中...</td></tr>
-                  <tr v-else-if="!details.length"><td colspan="7" class="empty">暂无明细</td></tr>
+                  <tr v-if="detailLoading"><td colspan="6" class="empty">加载中...</td></tr>
+                  <tr v-else-if="!details.length"><td colspan="6" class="empty">暂无明细</td></tr>
                   <tr v-else v-for="d in details" :key="`${d.user_id}-${d.trigger_time}`">
                     <td>{{ d.trigger_time }}</td>
                     <td><span class="source-chip">{{ sourceText(d.exec_source) }}</span></td>
@@ -1104,7 +1125,6 @@ onMounted(async () => {
                     <td><span class="operator-name" :title="d.operator || '-'">{{ d.operator || '-' }}</span></td>
                     <td><span :class="['amount-chip', d.change_amount >= 0 ? 'up' : 'down']">{{ d.change_amount >= 0 ? '+' : '' }}{{ d.change_amount }}</span></td>
                     <td><span :class="['status-chip', d.status === 'success' ? 'ok' : 'fail']">{{ d.status }}</span></td>
-                    <td class="remark-cell" :title="d.remark || '-'">{{ d.remark || '-' }}</td>
                   </tr>
                 </tbody>
               </table>
@@ -1392,7 +1412,6 @@ input:focus,select:focus{border-color:#6366f1;box-shadow:0 0 0 3px rgba(99,102,2
 .status-chip{display:inline-flex;align-items:center;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:700;text-transform:lowercase}
 .status-chip.ok{background:#dcfce7;color:#166534}
 .status-chip.fail{background:#fee2e2;color:#991b1b}
-.remark-cell{max-width:400px;line-height:1.65;color:#475569}
 
 @media (max-width: 1200px){
   .title-cn{font-size:20px}
@@ -1410,6 +1429,5 @@ input:focus,select:focus{border-color:#6366f1;box-shadow:0 0 0 3px rgba(99,102,2
   .drawer-body{grid-template-columns:1fr;padding:14px}
   .db-left,.db-right{min-height:240px}
   .detail-table th,.detail-table td{padding:10px}
-  .remark-cell{max-width:unset}
 }
 </style>

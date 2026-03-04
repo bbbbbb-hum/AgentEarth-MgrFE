@@ -288,7 +288,7 @@ const balanceHistory = ref<BalanceHistory[]>([]);
 const fundChangeRecords = ref<FundChangeRecord[]>([]);
 const selectedDays = ref(7); // 7 或 30
 const recordFilter = ref('all'); // all, recharge, deduction
-const chargeTypeFilter = ref(0); // 0=全部, 1=常规, 2=补偿, 3=赠送
+const chargeTypeFilter = ref(0); // 0=全部, 101=常规, 201=补偿, 301=赠送, 141=过期扣减, 341=管理员扣减
 const recordPage = ref(1);
 const recordPageSize = ref(10);
 const recordPageSizeOptions = [10, 20, 50, 100];
@@ -302,7 +302,7 @@ const showRechargeModal = ref(false);
 const showConfirmModal = ref(false);
 const rechargeAmount = ref(0);
 const rechargeRemarks = ref('');
-const rechargeChargeType = ref(1);
+const rechargeChargeType = ref(301);
 const rechargeExpireEnabled = ref(false);
 const rechargeExpireDate = ref(''); // YYYY-MM-DD，指定过期时间
 const showExpireDatePicker = ref(false);
@@ -315,7 +315,7 @@ const showDeductionModal = ref(false);
 const showDeductionConfirmModal = ref(false);
 const deductionAmount = ref(0);
 const deductionRemarks = ref('');
-const deductionChargeType = ref(5);
+const deductionChargeType = ref(341);
 const showSuccessToast = ref(false);
 const successTitle = ref('操作成功');
 const successMessage = ref('');
@@ -1066,7 +1066,7 @@ const closeRechargeModal = () => {
   showExpireDatePicker.value = false;
   rechargeAmount.value = 0;
   rechargeRemarks.value = '';
-  rechargeChargeType.value = 1;
+  rechargeChargeType.value = 301;
   rechargeExpireEnabled.value = false;
   rechargeExpireDate.value = '';
 };
@@ -1276,7 +1276,7 @@ const closeDeductionModal = () => {
   showDeductionModal.value = false;
   deductionAmount.value = 0;
   deductionRemarks.value = '';
-  deductionChargeType.value = 5;
+  deductionChargeType.value = 341;
 };
 
 // 快速选择扣减金额
@@ -1512,8 +1512,8 @@ const loadUserData = async () => {
   fundChangeRecords.value = [];
   selectedDays.value = 7;
   recordFilter.value = 'all';
-  rechargeChargeType.value = 1;
-  deductionChargeType.value = 5;
+  rechargeChargeType.value = 301;
+  deductionChargeType.value = 341;
   chargeTypeFilter.value = 0;
   displayBalance.value = 0;
   targetBalance.value = 0;
@@ -1749,11 +1749,11 @@ onUnmounted(() => {
             @change="switchChargeType(chargeTypeFilter)"
           >
             <option :value="0">全部充值类型</option>
-            <option :value="1">用户常规充值</option>
-            <option :value="2">系统故障补偿</option>
-            <option :value="3">活动赠送</option>
-            <option :value="4">过期扣减</option>
-            <option :value="5">管理员扣减</option>
+            <option :value="101">用户常规充值 (101)</option>
+            <option :value="201">系统故障补偿 (201)</option>
+            <option :value="301">活动赠送 (301)</option>
+            <option :value="141">过期扣减 (141)</option>
+            <option :value="341">管理员扣减 (341)</option>
           </select>
           <button class="export-btn" @click="exportToExcel" :disabled="fundChangeRecords.length === 0" title="导出当前筛选条件下的资金变动明细">
             📊 {{ fundChangeRecords.length === 0 ? '无数据可导出' : '导出 Excel' }}
@@ -2006,9 +2006,9 @@ onUnmounted(() => {
         <div class="input-group">
           <label>充值类型</label>
           <select v-model.number="rechargeChargeType" class="modal-select">
-            <option :value="1">用户常规充值</option>
-            <option :value="2">系统故障补偿</option>
-            <option :value="3">活动赠送</option>
+            <option :value="101">用户常规充值 (101)</option>
+            <option :value="201">系统故障补偿 (201)</option>
+            <option :value="301">活动赠送 (301)</option>
           </select>
         </div>
         <div class="input-group expire-time-group">
@@ -2157,8 +2157,7 @@ onUnmounted(() => {
         <div class="input-group">
           <label>扣减类型</label>
           <select v-model.number="deductionChargeType" class="modal-select">
-            <option :value="5">管理员扣减</option>
-            <option :value="4">过期扣减</option>
+            <option :value="341">管理员扣减 (341)</option>
           </select>
         </div>
           <div class="quick-amounts">
@@ -2213,11 +2212,9 @@ onUnmounted(() => {
               <span class="summary-label">扣减类型</span>
               <span class="summary-value">
                 {{
-                  deductionChargeType === 5
-                    ? '管理员扣减'
-                    : deductionChargeType === 4
-                      ? '过期扣减'
-                      : '未知类型'
+                  deductionChargeType === 341
+                    ? '管理员扣减 (341)'
+                    : '未知类型'
                 }}
               </span>
             </div>
