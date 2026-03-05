@@ -235,31 +235,36 @@ const parseRuleForEdit = (item: RuleItem) => {
     form.value.minRegDays = Number(fc.min_reg_days || 0);
     form.value.maxRegDays = Number(fc.max_reg_days || 0);
     form.value.lastLoginWithinDays = Number(fc.last_login_within_days || 0);
-    form.value.minLastMonthConsume = Number(fc.min_last_month_consume || 0);
-    form.value.maxLastMonthConsume = Number(fc.max_last_month_consume || 0);
+    // 上月消费：-1 表示不限，>=0 为真实金额（含 0 表示查“上月消费为 0”的用户）
+    const flcMin = fc.min_last_month_consume;
+    const flcMax = fc.max_last_month_consume;
+    form.value.minLastMonthConsume = typeof flcMin === 'number' ? flcMin : -1;
+    form.value.maxLastMonthConsume = typeof flcMax === 'number' ? flcMax : -1;
     const mb = Number(fc.min_balance);
     const mxb = Number(fc.max_balance);
     form.value.minBalance = typeof fc.min_balance === 'number' && fc.min_balance >= 0 ? mb : -1;
     form.value.maxBalance = typeof fc.max_balance === 'number' && fc.max_balance >= 0 ? mxb : -1;
     form.value.regChannel = typeof fc.reg_channel === 'string' ? fc.reg_channel : '';
-    form.value.minHistoryRecharge = Number(fc.min_history_recharge || 0);
-    form.value.maxHistoryRecharge = Number(fc.max_history_recharge || 0);
+    const fhrMin = fc.min_history_recharge;
+    const fhrMax = fc.max_history_recharge;
+    form.value.minHistoryRecharge = typeof fhrMin === 'number' ? fhrMin : -1;
+    form.value.maxHistoryRecharge = typeof fhrMax === 'number' ? fhrMax : -1;
 
     useRegLimit.value = form.value.minRegDays > 0 || form.value.maxRegDays > 0;
     useLoginLimit.value = form.value.lastLoginWithinDays > 0;
-    useConsumeLimit.value = form.value.minLastMonthConsume > 0 || form.value.maxLastMonthConsume > 0;
+    useConsumeLimit.value = form.value.minLastMonthConsume >= 0 || form.value.maxLastMonthConsume >= 0;
     useBalanceLimit.value = form.value.minBalance >= 0 || form.value.maxBalance >= 0;
   } catch {
     form.value.statuses = ['active'];
     form.value.minRegDays = 0;
     form.value.maxRegDays = 0;
     form.value.lastLoginWithinDays = 0;
-    form.value.minLastMonthConsume = 0;
-    form.value.maxLastMonthConsume = 0;
+    form.value.minLastMonthConsume = -1;
+    form.value.maxLastMonthConsume = -1;
     form.value.minBalance = -1;
     form.value.maxBalance = -1;
-    form.value.minHistoryRecharge = 0;
-    form.value.maxHistoryRecharge = 0;
+    form.value.minHistoryRecharge = -1;
+    form.value.maxHistoryRecharge = -1;
     form.value.regChannel = '';
     useRegLimit.value = false;
     useLoginLimit.value = false;
@@ -334,9 +339,18 @@ const validateFilterRange = (f: any) => {
   f.error = '';
   const normalize = (v: any) => (v === null || v === undefined || v === '' ? null : Number(v));
 
-  // 注册时间限制：min/max 都为 0 或空时，表示“不限”，不报错；
-  // 只有两个值都 >0 且 max < min 时才提示错误。
+  // 注册时间限制：不允许负数，0 或空表示“不限”
   if (f.type === 'reg_time') {
+    if (typeof f.min === 'number' && f.min < 0) {
+      f.min = 0;
+      f.error = '不能为负数';
+      return;
+    }
+    if (typeof f.max === 'number' && f.max < 0) {
+      f.max = null;
+      f.error = '不能为负数';
+      return;
+    }
     let min = normalize(f.min);
     let max = normalize(f.max);
     if (min !== null && min <= 0) min = null;
@@ -347,8 +361,48 @@ const validateFilterRange = (f: any) => {
     return;
   }
 
-  // 金额类区间：上月消费 / 当前余额 / 历史累计充值。
-  if (['last_month_consume', 'balance', 'history_recharge'].includes(f.type)) {
+  // 活跃度（最后登录）：天数至少为 1，0 无意义
+  if (f.type === 'last_login') {
+    if (typeof f.days === 'number' && f.days < 1) {
+      f.days = 1;
+      f.error = '天数至少为 1';
+      return;
+    }
+    return;
+  }
+
+  // 金额类区间：上月消费、历史充值不允许负数；余额仅允许 -1 表示“不限”
+  if (['last_month_consume', 'history_recharge'].includes(f.type)) {
+    if (typeof f.min === 'number' && f.min < 0) {
+      f.min = 0;
+      f.error = '不能为负数';
+      return;
+    }
+    if (typeof f.max === 'number' && f.max < 0) {
+      f.max = null;
+      f.error = '不能为负数';
+      return;
+    }
+    const min = normalize(f.min);
+    const max = normalize(f.max);
+    if (min !== null && max !== null && !Number.isNaN(min) && !Number.isNaN(max) && max < min) {
+      f.error = '区间不合法：上限不能小于下限';
+    }
+    return;
+  }
+
+  if (f.type === 'balance') {
+    // 余额区间：不允许负数；留空表示“不限”（和上月消费用法保持一致）
+    if (typeof f.min === 'number' && f.min < 0) {
+      f.min = 0;
+      f.error = '不能为负数';
+      return;
+    }
+    if (typeof f.max === 'number' && f.max < 0) {
+      f.max = null;
+      f.error = '不能为负数';
+      return;
+    }
     const min = normalize(f.min);
     const max = normalize(f.max);
     if (min !== null && max !== null && !Number.isNaN(min) && !Number.isNaN(max) && max < min) {
@@ -371,7 +425,7 @@ const addFilter = (type: string) => {
   if (type === 'reg_time') { f.min = 30; f.max = null; }
   else if (type === 'last_login') { f.days = 7; }
   else if (type === 'last_month_consume') { f.min = 100; f.max = null; }
-  else if (type === 'balance') { f.min = 0; f.max = null; }
+  else if (type === 'balance') { f.min = null; f.max = null; } // 不填表示不限，与上月消费一致
   else if (type === 'reg_channel') { f.channel = 'local'; }
   else if (type === 'history_recharge') { f.min = 100; f.max = null; }
    validateFilterRange(f);
@@ -382,37 +436,59 @@ const removeFilter = (idx: number) => {
   activeFilters.value.splice(idx, 1);
 };
 
-// 从 activeFilters 构建与后端 AudiencePreviewReq 一致的请求体（与 saveRule 的筛选映射一致）
+// 转为整数，避免表单传空串/字符串导致后端 type mismatch（min_reg_days 等要求 number）
+function toInt(v: unknown, fallback = 0): number {
+  if (v === null || v === undefined || v === '') return fallback;
+  const n = typeof v === 'number' ? v : Number(v);
+  return Number.isFinite(n) ? Math.trunc(n) : fallback;
+}
+
+// 转为浮点数，用于金额类字段
+function toFloat(v: unknown, fallback = 0): number {
+  if (v === null || v === undefined || v === '') return fallback;
+  const n = typeof v === 'number' ? v : Number(v);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+// 从 activeFilters 构建与后端 AudiencePreviewReq 一致的请求体（数值字段保证为 number，避免 400 type mismatch）
 function buildAudiencePreviewPayload() {
   const payload: Record<string, number | string> = {
     min_reg_days: 0,
     max_reg_days: 0,
     last_login_within_days: 0,
-    min_last_month_consume: 0,
-    max_last_month_consume: 0,
+    // 上月消费：-1 表示“不限”，>=0 为真实金额
+    min_last_month_consume: -1,
+    max_last_month_consume: -1,
     min_balance: -1,
     max_balance: -1,
     reg_channel: '',
-    min_history_recharge: 0,
-    max_history_recharge: 0,
+    // 历史累计充值：-1 表示“不限”，>=0 为真实金额（含 0 = 从未充值）
+    min_history_recharge: -1,
+    max_history_recharge: -1,
   };
   for (const f of activeFilters.value) {
     if (f.type === 'reg_time') {
-      payload.min_reg_days = f.min ?? 0;
-      payload.max_reg_days = f.max ?? 0;
+      payload.min_reg_days = toInt(f.min, 0);
+      payload.max_reg_days = toInt(f.max, 0);
     } else if (f.type === 'last_login') {
-      payload.last_login_within_days = f.days ?? 0;
+      payload.last_login_within_days = Math.max(1, toInt(f.days, 1));
     } else if (f.type === 'last_month_consume') {
-      payload.min_last_month_consume = f.min ?? 0;
-      payload.max_last_month_consume = f.max ?? 0;
+      const min = toFloat(f.min, -1);
+      const max = toFloat(f.max, -1);
+      payload.min_last_month_consume = min >= 0 ? min : -1;
+      payload.max_last_month_consume = max >= 0 ? max : -1;
     } else if (f.type === 'balance') {
-      payload.min_balance = f.min >= 0 ? f.min : -1;
-      payload.max_balance = f.max >= 0 ? f.max : -1;
+      const min = toFloat(f.min, -1);
+      const max = toFloat(f.max, -1);
+      payload.min_balance = min >= 0 ? min : -1;
+      payload.max_balance = max >= 0 ? max : -1;
     } else if (f.type === 'reg_channel') {
       payload.reg_channel = (f.channel || '').trim();
     } else if (f.type === 'history_recharge') {
-      payload.min_history_recharge = f.min ?? 0;
-      payload.max_history_recharge = f.max ?? 0;
+      const min = toFloat(f.min, -1);
+      const max = toFloat(f.max, -1);
+      payload.min_history_recharge = min >= 0 ? min : -1;
+      payload.max_history_recharge = max >= 0 ? max : -1;
     }
   }
   return payload;
@@ -491,8 +567,12 @@ const openEdit = (item: RuleItem) => {
   if (form.value.lastLoginWithinDays > 0) {
     activeFilters.value.push({ type: 'last_login', days: form.value.lastLoginWithinDays });
   }
-  if (form.value.minLastMonthConsume > 0 || form.value.maxLastMonthConsume > 0) {
-    activeFilters.value.push({ type: 'last_month_consume', min: form.value.minLastMonthConsume, max: form.value.maxLastMonthConsume || null });
+  if (form.value.minLastMonthConsume >= 0 || form.value.maxLastMonthConsume >= 0) {
+    activeFilters.value.push({
+      type: 'last_month_consume',
+      min: form.value.minLastMonthConsume >= 0 ? form.value.minLastMonthConsume : -1,
+      max: form.value.maxLastMonthConsume >= 0 ? form.value.maxLastMonthConsume : -1
+    });
   }
   if (form.value.minBalance >= 0 || form.value.maxBalance >= 0) {
     activeFilters.value.push({ type: 'balance', min: form.value.minBalance >= 0 ? form.value.minBalance : null, max: form.value.maxBalance >= 0 ? form.value.maxBalance : null });
@@ -500,8 +580,12 @@ const openEdit = (item: RuleItem) => {
   if (form.value.regChannel) {
     activeFilters.value.push({ type: 'reg_channel', channel: form.value.regChannel });
   }
-  if (form.value.minHistoryRecharge > 0 || form.value.maxHistoryRecharge > 0) {
-    activeFilters.value.push({ type: 'history_recharge', min: form.value.minHistoryRecharge, max: form.value.maxHistoryRecharge || null });
+  if (form.value.minHistoryRecharge >= 0 || form.value.maxHistoryRecharge >= 0) {
+    activeFilters.value.push({
+      type: 'history_recharge',
+      min: form.value.minHistoryRecharge >= 0 ? form.value.minHistoryRecharge : -1,
+      max: form.value.maxHistoryRecharge >= 0 ? form.value.maxHistoryRecharge : -1,
+    });
   }
   // Try to parse other filters from raw filter_config if any
   try {
@@ -559,31 +643,31 @@ const saveRule = async () => {
     form.value.minRegDays = 0;
     form.value.maxRegDays = 0;
     form.value.lastLoginWithinDays = 0;
-    form.value.minLastMonthConsume = 0;
-    form.value.maxLastMonthConsume = 0;
+    form.value.minLastMonthConsume = -1;
+    form.value.maxLastMonthConsume = -1;
     form.value.minBalance = -1;
     form.value.maxBalance = -1;
     form.value.regChannel = '';
-  form.value.minHistoryRecharge = 0;
-  form.value.maxHistoryRecharge = 0;
+    form.value.minHistoryRecharge = -1;
+    form.value.maxHistoryRecharge = -1;
 
     for (const f of activeFilters.value) {
       if (f.type === 'reg_time') {
         form.value.minRegDays = f.min || 0;
         form.value.maxRegDays = f.max || 0;
       } else if (f.type === 'last_login') {
-        form.value.lastLoginWithinDays = f.days || 0;
+        form.value.lastLoginWithinDays = (typeof f.days === 'number' && f.days >= 1) ? f.days : 1;
       } else if (f.type === 'last_month_consume') {
-        form.value.minLastMonthConsume = typeof f.min === 'number' ? f.min : 0;
-        form.value.maxLastMonthConsume = typeof f.max === 'number' ? f.max : 0;
+        form.value.minLastMonthConsume = (typeof f.min === 'number' && f.min >= 0) ? f.min : -1;
+        form.value.maxLastMonthConsume = (typeof f.max === 'number' && f.max >= 0) ? f.max : -1;
       } else if (f.type === 'balance') {
         form.value.minBalance = typeof f.min === 'number' && f.min >= 0 ? f.min : -1;
         form.value.maxBalance = typeof f.max === 'number' && f.max >= 0 ? f.max : -1;
       } else if (f.type === 'reg_channel') {
         form.value.regChannel = (f.channel || '').trim();
       } else if (f.type === 'history_recharge') {
-        form.value.minHistoryRecharge = typeof f.min === 'number' ? f.min : 0;
-        form.value.maxHistoryRecharge = typeof f.max === 'number' ? f.max : 0;
+        form.value.minHistoryRecharge = (typeof f.min === 'number' && f.min >= 0) ? f.min : -1;
+        form.value.maxHistoryRecharge = (typeof f.max === 'number' && f.max >= 0) ? f.max : -1;
       }
     }
 
@@ -607,8 +691,8 @@ const saveRule = async () => {
         min_balance: form.value.minBalance >= 0 ? form.value.minBalance : -1,
         max_balance: form.value.maxBalance >= 0 ? form.value.maxBalance : -1,
         reg_channel: form.value.regChannel,
-        min_history_recharge: Number(form.value.minHistoryRecharge || 0),
-        max_history_recharge: Number(form.value.maxHistoryRecharge || 0),
+        min_history_recharge: form.value.minHistoryRecharge >= 0 ? form.value.minHistoryRecharge : -1,
+        max_history_recharge: form.value.maxHistoryRecharge >= 0 ? form.value.maxHistoryRecharge : -1,
         // Also save the full filter list for future use/UI restore
         filters: activeFilters.value,
         action_type: actionType,
@@ -885,33 +969,34 @@ onMounted(async () => {
                         <div v-if="f.type === 'reg_time'" class="fc-inputs">
                           <span class="sep">|</span>
                           <span>注册时间超过</span>
-                          <input v-model.number="f.min" type="number" class="input-sm" placeholder="0" @blur="validateFilterRange(f)" />
+                          <input v-model.number="f.min" type="number" class="input-sm" min="0" placeholder="0" @blur="validateFilterRange(f)" />
                           <span>天，且不足</span>
-                          <input v-model.number="f.max" type="number" class="input-sm" placeholder="不限" @blur="validateFilterRange(f)" />
+                          <input v-model.number="f.max" type="number" class="input-sm" min="0" placeholder="不限" @blur="validateFilterRange(f)" />
                           <span>天</span>
                           <span v-if="f.error" class="fc-error">{{ f.error }}</span>
                         </div>
                         <div v-else-if="f.type === 'last_login'" class="fc-inputs">
                            <span class="sep">|</span>
                            <span>最近</span>
-                           <input v-model.number="f.days" type="number" class="input-sm" />
+                           <input v-model.number="f.days" type="number" class="input-sm" min="1" @blur="validateFilterRange(f)" />
                            <span>天内有登录行为</span>
+                           <span v-if="f.error" class="fc-error">{{ f.error }}</span>
                         </div>
                         <div v-else-if="f.type === 'last_month_consume'" class="fc-inputs">
                            <span class="sep">|</span>
                            <span>金额介于</span>
-                           <input v-model.number="f.min" type="number" class="input-md" placeholder="不限" @blur="validateFilterRange(f)" />
+                           <input v-model.number="f.min" type="number" class="input-md" min="0" placeholder="不限" @blur="validateFilterRange(f)" />
                            <span>至</span>
-                           <input v-model.number="f.max" type="number" class="input-md" placeholder="不限" @blur="validateFilterRange(f)" />
+                           <input v-model.number="f.max" type="number" class="input-md" min="0" placeholder="不限" @blur="validateFilterRange(f)" />
                            <span>元之间</span>
                            <span v-if="f.error" class="fc-error">{{ f.error }}</span>
                         </div>
                         <div v-else-if="f.type === 'balance'" class="fc-inputs">
                            <span class="sep">|</span>
                            <span>余额介于</span>
-                           <input v-model.number="f.min" type="number" class="input-md" placeholder="不限" @blur="validateFilterRange(f)" />
+                           <input v-model.number="f.min" type="number" class="input-md" min="0" placeholder="不限" @blur="validateFilterRange(f)" />
                            <span>至</span>
-                           <input v-model.number="f.max" type="number" class="input-md" placeholder="不限" @blur="validateFilterRange(f)" />
+                           <input v-model.number="f.max" type="number" class="input-md" min="0" placeholder="不限" @blur="validateFilterRange(f)" />
                            <span>元之间</span>
                            <span v-if="f.error" class="fc-error">{{ f.error }}</span>
                         </div>
@@ -927,9 +1012,9 @@ onMounted(async () => {
                         <div v-else-if="f.type === 'history_recharge'" class="fc-inputs">
                            <span class="sep">|</span>
                            <span>累计充值</span>
-                           <input v-model.number="f.min" type="number" class="input-md" placeholder="不限" @blur="validateFilterRange(f)" />
+                           <input v-model.number="f.min" type="number" class="input-md" min="0" placeholder="不限" @blur="validateFilterRange(f)" />
                            <span>至</span>
-                           <input v-model.number="f.max" type="number" class="input-md" placeholder="不限" @blur="validateFilterRange(f)" />
+                           <input v-model.number="f.max" type="number" class="input-md" min="0" placeholder="不限" @blur="validateFilterRange(f)" />
                            <span>元之间</span>
                            <span v-if="f.error" class="fc-error">{{ f.error }}</span>
                         </div>

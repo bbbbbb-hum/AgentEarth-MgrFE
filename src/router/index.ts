@@ -8,7 +8,7 @@ import McpServiceDetail from '../views/McpServiceDetail.vue';
 import UserFundManagement from '../views/UserFundManagement.vue';
 import UserDetail from '../views/UserDetail.vue';
 import Login from '../views/Login.vue';
-import RuleCenter from '../views/RuleCenterV2.vue';
+import RuleCenter from '../views/RuleCenter.vue';
 
 const routes = [
   {
