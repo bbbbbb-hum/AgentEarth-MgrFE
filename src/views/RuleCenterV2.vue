@@ -16,7 +16,6 @@ interface RuleItem {
   cron_expression: string;
   filter_config: string;
   action_config: string;
-  last_exec_time?: string;
 }
 
 interface DashboardResp {
