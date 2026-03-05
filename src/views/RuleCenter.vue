@@ -114,6 +114,21 @@ const runSummary = computed(() => {
 const fmt = (n: number) => Number(n || 0).toLocaleString('zh-CN');
 const sourceText = (v: string) => (v === 'manual' ? '手动' : '自动');
 
+// 轻量级居中提示条
+const toastVisible = ref(false);
+const toastMessage = ref('');
+let toastTimer: ReturnType<typeof setTimeout> | null = null;
+
+const showToast = (msg: string, duration = 3000) => {
+  toastMessage.value = msg;
+  toastVisible.value = true;
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    toastVisible.value = false;
+    toastTimer = null;
+  }, duration);
+};
+
 const parseAmountText = (cfg: string) => {
   try {
     const c = JSON.parse(cfg || '{}');
@@ -741,11 +756,25 @@ const toggleRule = async (item: RuleItem) => {
 };
 
 const manualRun = async (item: RuleItem) => {
-  await authorizedFetch('api/rules/manual-run', {
+  const resp = await authorizedFetch('api/rules/manual-run', {
     method: 'POST',
     body: JSON.stringify({ rule_id: item.id })
   });
-  await fetchList();
+  let data: any = {};
+  try {
+    data = await resp.json();
+  } catch {
+    // ignore parse error, fallback to generic message
+  }
+  if (!resp.ok) {
+    showToast(data?.message || '手动执行失败，请稍后重试');
+    return;
+  }
+  const eligible = Number(data?.eligible_count ?? 0);
+  const success = Number(data?.success_count ?? data?.exec_count ?? 0);
+  const failed = Number.isFinite(eligible - success) ? eligible - success : 0;
+  showToast(`手动执行完成：应命中 ${eligible} 人，成功 ${success} 人，失败 ${failed} 人`);
+  await Promise.all([fetchStats(), fetchList()]);
 };
 
 const deleteRule = (item: RuleItem) => {
@@ -1237,6 +1266,16 @@ onMounted(async () => {
         </aside>
       </div>
     </Teleport>
+
+    <Teleport to="body">
+      <transition name="rule-toast">
+        <div v-if="toastVisible" class="rule-toast">
+          <div class="rule-toast-inner">
+            {{ toastMessage }}
+          </div>
+        </div>
+      </transition>
+    </Teleport>
   </div>
 </template>
 
@@ -1352,6 +1391,11 @@ input:focus,select:focus{border-color:#6366f1;box-shadow:0 0 0 3px rgba(99,102,2
 .preview{margin-top:16px;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px;font-family:"Menlo",monospace;font-size:13px;color:#6366f1;display:flex;align-items:center;gap:8px}
 .preview:before{content:'Cron Expression:';color:#94a3b8;font-size:12px;font-weight:600}
 .hint{margin-top:16px;background:#eff6ff;border:1px solid #dbeafe;border-radius:10px;padding:12px 16px;color:#1e40af;font-size:13px;line-height:1.5}
+
+.rule-toast{position:fixed;top:24px;left:0;right:0;display:flex;align-items:flex-start;justify-content:center;pointer-events:none;z-index:100000}
+.rule-toast-inner{max-width:520px;background:#22c55e;color:#f0fdf4;border-radius:999px;padding:8px 24px;font-size:14px;box-shadow:0 18px 35px rgba(34,197,94,0.35);pointer-events:auto;white-space:nowrap}
+.rule-toast-enter-active,.rule-toast-leave-active{transition:opacity .25s ease,transform .25s ease}
+.rule-toast-enter-from,.rule-toast-leave-to{opacity:0;transform:translateY(-8px)}
 
 .filter-container{background:#fff;border-radius:16px;border:1px solid #e2e8f0;padding:24px}
 .fc-head{font-size:15px;color:#0f172a;margin-bottom:16px;font-weight:600}
