@@ -671,7 +671,7 @@ const saveRule = async () => {
       }
     }
 
-    await authorizedFetch('api/rules/save', {
+    const resp = await authorizedFetch('api/rules/save', {
       method: 'POST',
       body: JSON.stringify({
         id: form.value.id,
@@ -700,6 +700,25 @@ const saveRule = async () => {
         expire_strategy: expire
       })
     });
+
+    // 检查响应状态，处理错误（兼容非 JSON / 空响应）
+    if (!resp.ok) {
+      try {
+        const errorData = await resp.json();
+        if (errorData && typeof errorData === 'object' && typeof (errorData as any).message === 'string') {
+          const msg = (errorData as any).message;
+          if (msg.includes('RULE_NO_AUDIENCE')) {
+            alert('当前筛选条件下无命中用户，请调整筛选条件后再保存');
+            return;
+          }
+          throw new Error(msg || '保存失败');
+        }
+        throw new Error('保存失败');
+      } catch {
+        throw new Error('保存失败，请稍后重试');
+      }
+    }
+
     showEditor.value = false;
     await Promise.all([fetchStats(), fetchList()]);
   } finally {
